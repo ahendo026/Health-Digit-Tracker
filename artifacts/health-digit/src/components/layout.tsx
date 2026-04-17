@@ -21,7 +21,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="h-16 flex items-center justify-between px-6 border-b border-border">
         <div className="font-semibold text-lg flex items-center gap-2 text-primary">
           <LayoutDashboard className="w-5 h-5" />
-          Health Digit
+          HealthDigits
         </div>
         <Button
           variant="ghost"
@@ -123,7 +123,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </Button>
           <div className="font-semibold flex items-center gap-2 text-primary">
             <LayoutDashboard className="w-4 h-4" />
-            Health Digit
+            HealthDigits
           </div>
         </header>
         {children}
