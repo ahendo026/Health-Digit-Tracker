@@ -249,6 +249,12 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
   try {
     const analysisResult = await analyzeScreenshot(uploadRecord.filePath);
 
+    const safeDate = (v: string | undefined | null): Date | null => {
+      if (!v) return null;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     const [llmRun] = await db
       .insert(llmRunsTable)
       .values({
@@ -268,7 +274,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
         await db.insert(eventsTable).values({
           uploadId: params.data.id,
           eventType: event.eventType,
-          eventTime: event.eventTime ? new Date(event.eventTime) : null,
+          eventTime: safeDate(event.eventTime),
           value: event.value ?? null,
           unit: event.unit ?? null,
           systolic: event.systolic ?? null,
@@ -282,7 +288,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
       for (const meal of analysisResult.data.meals) {
         await db.insert(mealsTable).values({
           name: meal.name ?? null,
-          mealTime: meal.mealTime ? new Date(meal.mealTime) : null,
+          mealTime: safeDate(meal.mealTime),
           calories: meal.calories ?? null,
           protein: meal.protein ?? null,
           carbs: meal.carbs ?? null,
@@ -299,7 +305,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
       for (const workout of analysisResult.data.workouts) {
         await db.insert(workoutsTable).values({
           workoutType: workout.workoutType ?? null,
-          workoutTime: workout.workoutTime ? new Date(workout.workoutTime) : null,
+          workoutTime: safeDate(workout.workoutTime),
           duration: workout.duration ?? null,
           averageHeartRate: workout.averageHeartRate ?? null,
           maxHeartRate: workout.maxHeartRate ?? null,
