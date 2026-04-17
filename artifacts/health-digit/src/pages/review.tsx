@@ -111,9 +111,9 @@ export default function ReviewPage() {
 
   return (
     <Layout>
-      <div className="flex-1 p-8 w-full max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Review Queue</h1>
-        <p className="text-muted-foreground mb-8">Verify automated classifications to improve data quality.</p>
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-2">Review Queue</h1>
+        <p className="text-muted-foreground mb-6 sm:mb-8">Verify automated classifications to improve data quality.</p>
 
         {isLoading ? (
           <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
@@ -126,7 +126,7 @@ export default function ReviewPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
             {pendingUploads.map(upload => {
               const state = getState(upload.id);
               return (
@@ -149,8 +149,8 @@ export default function ReviewPage() {
                     </div>
                   </CardHeader>
 
-                  <div className="grid grid-cols-[160px_1fr] border-b border-border">
-                    <div className="bg-muted border-r border-border p-2 flex justify-center items-center">
+                  <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] border-b border-border">
+                    <div className="bg-muted sm:border-r border-b sm:border-b-0 border-border p-2 flex justify-center items-center">
                       <img
                         src={`/api/storage/objects/${upload.filePath}`}
                         alt={upload.originalFilename}
@@ -166,15 +166,15 @@ export default function ReviewPage() {
                   </div>
 
                   <CardContent className="p-4 flex-1 space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <label className="text-sm font-medium">Classification correct?</label>
                       <YesNo value={state.classificationCorrect} onChange={(v) => updateState(upload.id, { classificationCorrect: v })} />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <label className="text-sm font-medium">Values correct?</label>
                       <YesNo value={state.valuesCorrect} onChange={(v) => updateState(upload.id, { valuesCorrect: v })} />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <label className="text-sm font-medium">Useful?</label>
                       <YesNo value={state.useful} onChange={(v) => updateState(upload.id, { useful: v })} />
                     </div>

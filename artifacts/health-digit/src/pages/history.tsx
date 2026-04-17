@@ -17,15 +17,15 @@ export default function HistoryPage() {
 
   return (
     <Layout>
-      <div className="flex-1 p-8 w-full max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-6">Upload History</h1>
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-6">Upload History</h1>
         
         <Card>
           <CardHeader className="pb-4 border-b border-border">
             <CardTitle className="text-lg">All Screenshots</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <Table>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table className="min-w-[640px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="pl-6">Uploaded At</TableHead>

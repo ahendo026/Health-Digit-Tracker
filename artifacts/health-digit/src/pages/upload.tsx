@@ -74,8 +74,8 @@ export default function UploadPage() {
 
   return (
     <Layout>
-      <div className="flex-1 p-8 max-w-3xl mx-auto w-full">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-6">New Upload</h1>
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-6">New Upload</h1>
         
         <Card>
           <CardHeader>

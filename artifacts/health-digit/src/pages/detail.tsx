@@ -20,7 +20,7 @@ export default function DetailPage() {
   if (isLoading) {
     return (
       <Layout>
-        <div className="p-8 max-w-6xl mx-auto w-full space-y-6">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full space-y-6">
           <Skeleton className="h-10 w-64" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Skeleton className="h-[400px] md:col-span-1" />
@@ -34,7 +34,7 @@ export default function DetailPage() {
   if (error || !data) {
     return (
       <Layout>
-        <div className="p-8 max-w-6xl mx-auto w-full flex flex-col items-center justify-center min-h-[50vh] text-center">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full flex flex-col items-center justify-center min-h-[50vh] text-center">
           <AlertCircle className="w-12 h-12 text-destructive mb-4" />
           <h2 className="text-xl font-bold">Upload not found</h2>
           <p className="text-muted-foreground mt-2">The upload you're looking for doesn't exist or there was an error.</p>
@@ -47,23 +47,23 @@ export default function DetailPage() {
 
   return (
     <Layout>
-      <div className="flex-1 p-8 w-full max-w-6xl mx-auto">
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground truncate max-w-2xl">
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">
               {upload.originalFilename}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Uploaded on {format(new Date(upload.createdAt), "MMMM d, yyyy 'at' h:mm a")}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <ClassificationBadge classification={upload.classification} />
             <StatusBadge status={upload.status} />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Left Column: Image and Meta */}
           <div className="space-y-6 lg:col-span-1">
             <Card className="overflow-hidden border-border bg-card">
