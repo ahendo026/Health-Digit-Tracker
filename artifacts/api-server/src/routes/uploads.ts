@@ -118,7 +118,7 @@ router.post("/uploads", upload.single("file"), async (req, res): Promise<void> =
     return;
   }
 
-  const { notes } = req.body as { notes?: string };
+  const { notes, sourceApp } = req.body as { notes?: string; sourceApp?: string };
 
   try {
     const presignedUrl = await storageService.getObjectEntityUploadURL();
@@ -150,6 +150,7 @@ router.post("/uploads", upload.single("file"), async (req, res): Promise<void> =
         fileSize: req.file.size,
         status: "pending",
         notes: notes ?? null,
+        sourceApp: sourceApp ?? null,
       })
       .returning();
 
@@ -324,9 +325,12 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
 });
 
 router.post("/reviews", async (req, res): Promise<void> => {
-  const { uploadId, classification, notes, approved } = req.body as {
+  const { uploadId, classification, classificationCorrect, valuesCorrect, useful, notes, approved } = req.body as {
     uploadId?: number;
     classification?: string;
+    classificationCorrect?: boolean | null;
+    valuesCorrect?: boolean | null;
+    useful?: boolean | null;
     notes?: string;
     approved?: boolean;
   };
@@ -346,11 +350,17 @@ router.post("/reviews", async (req, res): Promise<void> => {
     return;
   }
 
+  const boolToInt = (v: boolean | null | undefined): number | null =>
+    v === true ? 1 : v === false ? 0 : null;
+
   const [review] = await db
     .insert(reviewsTable)
     .values({
       uploadId,
       classification: classification ?? null,
+      classificationCorrect: boolToInt(classificationCorrect),
+      valuesCorrect: boolToInt(valuesCorrect),
+      useful: boolToInt(useful),
       notes: notes ?? null,
       approved: approved ? 1 : 0,
     })
@@ -363,9 +373,15 @@ router.post("/reviews", async (req, res): Promise<void> => {
       .where(eq(uploadsTable.id, uploadId));
   }
 
+  const intToBool = (v: number | null): boolean | null =>
+    v === 1 ? true : v === 0 ? false : null;
+
   res.status(201).json({
     ...review,
     approved: Boolean(review.approved),
+    classificationCorrect: intToBool(review.classificationCorrect),
+    valuesCorrect: intToBool(review.valuesCorrect),
+    useful: intToBool(review.useful),
   });
 });
 

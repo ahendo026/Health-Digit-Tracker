@@ -28,11 +28,11 @@ export default function HistoryPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">File</TableHead>
-                  <TableHead>Classification</TableHead>
+                  <TableHead className="pl-6">Uploaded At</TableHead>
+                  <TableHead>Source App</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Summary</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Classification</TableHead>
+                  <TableHead>Confidence</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -42,8 +42,8 @@ export default function HistoryPage() {
                       <TableCell className="pl-6"><Skeleton className="h-5 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     </TableRow>
                   ))
                 ) : data?.uploads.length === 0 ? (
@@ -56,31 +56,24 @@ export default function HistoryPage() {
                   data?.uploads.map((upload) => (
                     <TableRow key={upload.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="pl-6">
-                        <Link href={`/uploads/${upload.id}`} className="flex items-center gap-2 font-medium text-primary hover:underline">
+                        <Link href={`/uploads/${upload.id}`} className="flex items-center gap-2 font-medium text-primary hover:underline whitespace-nowrap">
                           <FileImage className="w-4 h-4 text-muted-foreground" />
-                          <span className="truncate max-w-[150px]">{upload.originalFilename}</span>
+                          {format(new Date(upload.createdAt), "MMM d, yyyy HH:mm")}
                         </Link>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <ClassificationBadge classification={upload.classification} />
-                          {upload.confidence !== null && upload.confidence !== undefined && (
-                            <span className="text-xs text-muted-foreground">
-                              {(upload.confidence * 100).toFixed(0)}% confidence
-                            </span>
-                          )}
-                        </div>
+                      <TableCell className="text-sm">
+                        {upload.sourceApp || <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={upload.status} />
                       </TableCell>
-                      <TableCell className="max-w-[300px]">
-                        <p className="text-sm truncate text-muted-foreground">
-                          {upload.summary || "-"}
-                        </p>
+                      <TableCell>
+                        <ClassificationBadge classification={upload.classification} />
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {format(new Date(upload.createdAt), "MMM d, yyyy HH:mm")}
+                      <TableCell className="text-sm text-muted-foreground">
+                        {upload.confidence !== null && upload.confidence !== undefined
+                          ? `${(upload.confidence * 100).toFixed(0)}%`
+                          : "—"}
                       </TableCell>
                     </TableRow>
                   ))

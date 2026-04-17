@@ -204,6 +204,8 @@ components:
           type: string
         fileSize:
           type: integer
+        sourceApp:
+          type: ["string", "null"]
         classification:
           type: ["string", "null"]
         confidence:
@@ -407,6 +409,12 @@ components:
           type: ["integer", "null"]
         classification:
           type: ["string", "null"]
+        classificationCorrect:
+          type: ["boolean", "null"]
+        valuesCorrect:
+          type: ["boolean", "null"]
+        useful:
+          type: ["boolean", "null"]
         notes:
           type: ["string", "null"]
         approved:
@@ -427,6 +435,12 @@ components:
           type: integer
         classification:
           type: ["string", "null"]
+        classificationCorrect:
+          type: ["boolean", "null"]
+        valuesCorrect:
+          type: ["boolean", "null"]
+        useful:
+          type: ["boolean", "null"]
         notes:
           type: ["string", "null"]
         approved:

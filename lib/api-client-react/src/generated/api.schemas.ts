@@ -18,6 +18,8 @@ export interface Upload {
   mimeType: string;
   fileSize: number;
   /** @nullable */
+  sourceApp?: string | null;
+  /** @nullable */
   classification?: string | null;
   /** @nullable */
   confidence?: number | null;
@@ -128,6 +130,12 @@ export interface Review {
   /** @nullable */
   classification?: string | null;
   /** @nullable */
+  classificationCorrect?: boolean | null;
+  /** @nullable */
+  valuesCorrect?: boolean | null;
+  /** @nullable */
+  useful?: boolean | null;
+  /** @nullable */
   notes?: string | null;
   approved: boolean;
   createdAt: string;
@@ -146,6 +154,12 @@ export interface CreateReviewBody {
   uploadId: number;
   /** @nullable */
   classification?: string | null;
+  /** @nullable */
+  classificationCorrect?: boolean | null;
+  /** @nullable */
+  valuesCorrect?: boolean | null;
+  /** @nullable */
+  useful?: boolean | null;
   /** @nullable */
   notes?: string | null;
   approved: boolean;
