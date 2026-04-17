@@ -73,7 +73,7 @@ export default function DetailPage() {
               </div>
               <div className="p-4 bg-muted/30 flex justify-center bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZjBmMGYwIj48L3JlY3Q+CjxyZWN0IHg9IjQiIHk9IjQiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmMGYwZjAiPjwvcmVjdD4KPC9zdmc+')]">
                 <img 
-                  src={`/api/storage/objects/${upload.filePath}`} 
+                  src={`/api/storage${upload.filePath}`} 
                   alt={upload.originalFilename}
                   className="max-w-full h-auto rounded shadow-sm border border-border/50 max-h-[500px] object-contain"
                 />

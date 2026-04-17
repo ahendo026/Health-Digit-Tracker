@@ -152,7 +152,7 @@ export default function ReviewPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] border-b border-border">
                     <div className="bg-muted sm:border-r border-b sm:border-b-0 border-border p-2 flex justify-center items-center">
                       <img
-                        src={`/api/storage/objects/${upload.filePath}`}
+                        src={`/api/storage${upload.filePath}`}
                         alt={upload.originalFilename}
                         className="max-h-36 max-w-full object-contain rounded-sm"
                       />
