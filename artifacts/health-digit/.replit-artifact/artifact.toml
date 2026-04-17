@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Health Digit"
+version = "1.0.0"
+id = "artifacts/health-digit"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24283
+
+[services.development]
+run = "pnpm --filter @workspace/health-digit run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/health-digit", "run", "build" ]
+publicDir = "artifacts/health-digit/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24283"
+BASE_PATH = "/"

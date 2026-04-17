@@ -3,13 +3,19 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Health Digit API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: uploads
+    description: Upload operations
+  - name: reviews
+    description: Review operations
+  - name: outcomes
+    description: Outcome operations
 paths:
   /healthz:
     get:
@@ -24,6 +30,155 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /uploads:
+    get:
+      operationId: listUploads
+      tags: [uploads]
+      summary: List all uploads
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: classification
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of uploads
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUploadsResponse"
+
+  /uploads/{id}:
+    get:
+      operationId: getUpload
+      tags: [uploads]
+      summary: Get upload detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Upload detail with normalized data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadDetail"
+        "404":
+          description: Not found
+
+  /uploads/{id}/analyze:
+    post:
+      operationId: analyzeUpload
+      tags: [uploads]
+      summary: Trigger LLM analysis of an upload
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Analysis complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LlmRun"
+        "404":
+          description: Not found
+        "409":
+          description: Already being analyzed
+
+  /reviews:
+    post:
+      operationId: createReview
+      tags: [reviews]
+      summary: Submit a manual review for an upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewBody"
+      responses:
+        "201":
+          description: Review created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "400":
+          description: Bad request
+
+  /outcomes:
+    get:
+      operationId: listOutcomes
+      tags: [outcomes]
+      summary: List health outcomes
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: List of outcomes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOutcomesResponse"
+
+  /uploads/summary:
+    get:
+      operationId: getUploadSummary
+      tags: [uploads]
+      summary: Get summary counts by classification
+      responses:
+        "200":
+          description: Summary of uploads by classification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadSummary"
+
+  /uploads/recent:
+    get:
+      operationId: getRecentActivity
+      tags: [uploads]
+      summary: Get recent upload activity
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent uploads with status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUploadsResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +189,335 @@ components:
       required:
         - status
 
+    Upload:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        filePath:
+          type: string
+        originalFilename:
+          type: string
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+        classification:
+          type: ["string", "null"]
+        confidence:
+          type: ["number", "null"]
+        summary:
+          type: ["string", "null"]
+        status:
+          type: string
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - filePath
+        - originalFilename
+        - mimeType
+        - fileSize
+        - status
+        - createdAt
+        - updatedAt
+
+    UploadDetail:
+      type: object
+      properties:
+        upload:
+          $ref: "#/components/schemas/Upload"
+        llmRuns:
+          type: array
+          items:
+            $ref: "#/components/schemas/LlmRun"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        meals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Meal"
+        workouts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Workout"
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/Review"
+      required:
+        - upload
+        - llmRuns
+        - events
+        - meals
+        - workouts
+        - reviews
+
+    LlmRun:
+      type: object
+      properties:
+        id:
+          type: integer
+        uploadId:
+          type: integer
+        modelName:
+          type: string
+        promptVersion:
+          type: string
+        rawOutput:
+          type: object
+        classification:
+          type: ["string", "null"]
+        confidence:
+          type: ["number", "null"]
+        summary:
+          type: ["string", "null"]
+        status:
+          type: string
+        errorMessage:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - uploadId
+        - modelName
+        - promptVersion
+        - rawOutput
+        - status
+        - createdAt
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+        uploadId:
+          type: integer
+        eventType:
+          type: string
+        eventTime:
+          type: ["string", "null"]
+          format: date-time
+        value:
+          type: ["number", "null"]
+        unit:
+          type: ["string", "null"]
+        systolic:
+          type: ["integer", "null"]
+        diastolic:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - uploadId
+        - eventType
+        - createdAt
+
+    Meal:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: ["string", "null"]
+        mealTime:
+          type: ["string", "null"]
+          format: date-time
+        calories:
+          type: ["number", "null"]
+        protein:
+          type: ["number", "null"]
+        carbs:
+          type: ["number", "null"]
+        fat:
+          type: ["number", "null"]
+        fiber:
+          type: ["number", "null"]
+        mealType:
+          type: ["string", "null"]
+        foods:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - createdAt
+
+    Workout:
+      type: object
+      properties:
+        id:
+          type: integer
+        workoutType:
+          type: ["string", "null"]
+        workoutTime:
+          type: ["string", "null"]
+          format: date-time
+        duration:
+          type: ["integer", "null"]
+        averageHeartRate:
+          type: ["integer", "null"]
+        maxHeartRate:
+          type: ["integer", "null"]
+        calories:
+          type: ["number", "null"]
+        distance:
+          type: ["number", "null"]
+        pace:
+          type: ["number", "null"]
+        heartRateZones:
+          type: object
+          nullable: true
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - createdAt
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+        uploadId:
+          type: integer
+        reviewerId:
+          type: ["integer", "null"]
+        classification:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        approved:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - uploadId
+        - approved
+        - createdAt
+
+    CreateReviewBody:
+      type: object
+      properties:
+        uploadId:
+          type: integer
+        classification:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        approved:
+          type: boolean
+      required:
+        - uploadId
+        - approved
+
+    Outcome:
+      type: object
+      properties:
+        id:
+          type: integer
+        uploadId:
+          type: ["integer", "null"]
+        eventId:
+          type: ["integer", "null"]
+        outcomeType:
+          type: string
+        value:
+          type: ["number", "null"]
+        unit:
+          type: ["string", "null"]
+        measuredAt:
+          type: ["string", "null"]
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - outcomeType
+        - createdAt
+
+    ListUploadsResponse:
+      type: object
+      properties:
+        uploads:
+          type: array
+          items:
+            $ref: "#/components/schemas/Upload"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - uploads
+        - total
+        - page
+        - limit
+
+    ListOutcomesResponse:
+      type: object
+      properties:
+        outcomes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Outcome"
+        total:
+          type: integer
+      required:
+        - outcomes
+        - total
+
+    UploadSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        byClassification:
+          type: array
+          items:
+            type: object
+            properties:
+              classification:
+                type: string
+              count:
+                type: integer
+            required:
+              - classification
+              - count
+        pendingReview:
+          type: integer
+        analyzed:
+          type: integer
+      required:
+        - total
+        - byClassification
+        - pendingReview
+        - analyzed
