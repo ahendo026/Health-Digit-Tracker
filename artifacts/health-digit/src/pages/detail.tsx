@@ -1,21 +1,78 @@
-import { useRoute } from "wouter";
+import { useRoute, Link } from "wouter";
 import { Layout } from "@/components/layout";
-import { useGetUpload } from "@workspace/api-client-react";
+import {
+  useGetUpload,
+  useAnalyzeUpload,
+  getGetUploadQueryKey,
+  getGetUploadSummaryQueryKey,
+  getListUploadsQueryKey,
+} from "@workspace/api-client-react";
 import { ClassificationBadge, StatusBadge } from "@/components/badges";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, Activity, Utensils, Clock, HeartPulse, Scale, CheckCircle2 } from "lucide-react";
+import {
+  AlertCircle,
+  Activity,
+  Utensils,
+  Clock,
+  HeartPulse,
+  CheckCircle2,
+  XCircle,
+  RotateCw,
+  Loader2,
+  ClipboardCheck,
+} from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+
+function ReviewAnswer({ label, value }: { label: string; value: number | boolean | null | undefined }) {
+  const v = value === true || value === 1 ? true : value === false || value === 0 ? false : null;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      {v === true ? (
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+      ) : v === false ? (
+        <XCircle className="w-3.5 h-3.5 text-destructive" />
+      ) : (
+        <span className="w-3.5 h-3.5 inline-block rounded-full border border-muted-foreground/30" />
+      )}
+      {label}
+    </span>
+  );
+}
 
 export default function DetailPage() {
   const [, params] = useRoute("/uploads/:id");
   const id = params?.id ? parseInt(params.id, 10) : 0;
-  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data, isLoading, error } = useGetUpload(id, {
-    query: { enabled: !!id }
+    query: {
+      enabled: !!id,
+      refetchInterval: (query) => {
+        const status = query.state.data?.upload?.status;
+        return status === "analyzing" || status === "pending" ? 2000 : false;
+      },
+    },
   });
+
+  const analyzeUpload = useAnalyzeUpload();
+
+  const handleRetry = async () => {
+    try {
+      await analyzeUpload.mutateAsync({ id });
+      queryClient.invalidateQueries({ queryKey: getGetUploadQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getGetUploadSummaryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListUploadsQueryKey() });
+      toast({ title: "Re-analysis started" });
+    } catch {
+      toast({ title: "Could not start analysis", variant: "destructive" });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -44,24 +101,90 @@ export default function DetailPage() {
   }
 
   const { upload, llmRuns, events, meals, workouts, reviews } = data;
+  const isAnalyzing = upload.status === "analyzing" || upload.status === "pending";
+  const isFailed = upload.status === "failed";
+  const isAnalyzed = upload.status === "analyzed";
+  const hasReview = reviews.length > 0;
+
+  const titleLabel = upload.classification
+    ? upload.classification.replace(/_/g, " ")
+    : "Untitled upload";
 
   return (
     <Layout>
       <div className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">
-              {upload.originalFilename}
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground capitalize truncate">
+              {titleLabel}
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Uploaded on {format(new Date(upload.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+            <p className="text-sm text-muted-foreground mt-1 truncate">
+              {upload.sourceApp ? <><span className="font-medium text-foreground">{upload.sourceApp}</span> · </> : null}
+              {upload.originalFilename} · {format(new Date(upload.createdAt), "MMM d, yyyy 'at' h:mm a")}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <ClassificationBadge classification={upload.classification} />
             <StatusBadge status={upload.status} />
+            {hasReview && (
+              <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                <CheckCircle2 className="w-3 h-3" /> Reviewed
+              </span>
+            )}
           </div>
         </div>
+
+        {/* Status banner */}
+        {isAnalyzing && (
+          <Card className="mb-6 border-blue-200 bg-blue-50/60">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-700" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-900">Analysis in progress</p>
+                <p className="text-xs text-blue-800/80">Reading the screenshot and extracting structured data. This page updates automatically.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isFailed && (
+          <Card className="mb-6 border-destructive/30 bg-destructive/5">
+            <CardContent className="p-4 flex items-center gap-3 flex-wrap">
+              <AlertCircle className="w-5 h-5 text-destructive" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Analysis failed</p>
+                <p className="text-xs text-muted-foreground">Try running it again. If it keeps failing, the image may not be readable.</p>
+              </div>
+              <Button size="sm" onClick={handleRetry} disabled={analyzeUpload.isPending}>
+                {analyzeUpload.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RotateCw className="w-4 h-4 mr-1" />}
+                Re-analyze
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {isAnalyzed && !hasReview && (
+          <Card className="mb-6 border-amber-200 bg-amber-50/60">
+            <CardContent className="p-4 flex items-center gap-3 flex-wrap">
+              <ClipboardCheck className="w-5 h-5 text-amber-700" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-amber-900">Ready for review</p>
+                <p className="text-xs text-amber-800/80">Confirm the classification and extracted values to lock this entry in.</p>
+              </div>
+              <Link href="/review">
+                <Button size="sm" variant="outline" className="border-amber-300 bg-white">
+                  Review now
+                </Button>
+              </Link>
+              {isAnalyzed && (
+                <Button size="sm" variant="ghost" onClick={handleRetry} disabled={analyzeUpload.isPending}>
+                  {analyzeUpload.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RotateCw className="w-4 h-4 mr-1" />}
+                  Re-analyze
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Left Column: Image and Meta */}
@@ -72,8 +195,8 @@ export default function DetailPage() {
                 <span>{(upload.fileSize / 1024).toFixed(1)} KB</span>
               </div>
               <div className="p-4 bg-muted/30 flex justify-center bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZjBmMGYwIj48L3JlY3Q+CjxyZWN0IHg9IjQiIHk9IjQiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmMGYwZjAiPjwvcmVjdD4KPC9zdmc+')]">
-                <img 
-                  src={`/api/storage${upload.filePath}`} 
+                <img
+                  src={`/api/storage${upload.filePath}`}
                   alt={upload.originalFilename}
                   className="max-w-full h-auto rounded shadow-sm border border-border/50 max-h-[500px] object-contain"
                 />
@@ -90,7 +213,7 @@ export default function DetailPage() {
                 </CardContent>
               </Card>
             )}
-            
+
             {reviews.length > 0 && (
               <Card>
                 <CardHeader className="py-3 px-4 border-b border-border">
@@ -102,15 +225,21 @@ export default function DetailPage() {
                 <CardContent className="p-4 space-y-4">
                   {reviews.map(review => (
                     <div key={review.id} className="text-sm border-l-2 border-primary/30 pl-3 py-1">
-                      <div className="flex justify-between items-center mb-1">
+                      <div className="flex justify-between items-center mb-1.5">
                         <span className="font-medium text-foreground">
-                          {review.approved ? "Approved" : "Rejected"} as {review.classification}
+                          {review.approved ? "Approved" : "Rejected"}
+                          {review.classification ? <> as <span className="capitalize">{review.classification.replace(/_/g, " ")}</span></> : null}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {format(new Date(review.createdAt), "MMM d")}
                         </span>
                       </div>
-                      {review.notes && <p className="text-muted-foreground">{review.notes}</p>}
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mb-1">
+                        <ReviewAnswer label="Classification" value={review.classificationCorrect} />
+                        <ReviewAnswer label="Values" value={review.valuesCorrect} />
+                        <ReviewAnswer label="Useful" value={review.useful} />
+                      </div>
+                      {review.notes && <p className="text-muted-foreground mt-1">{review.notes}</p>}
                     </div>
                   ))}
                 </CardContent>
@@ -132,7 +261,12 @@ export default function DetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                {upload.summary ? (
+                {isAnalyzing ? (
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Waiting for analysis to complete…</span>
+                  </div>
+                ) : upload.summary ? (
                   <p className="text-foreground leading-relaxed">{upload.summary}</p>
                 ) : (
                   <p className="text-muted-foreground italic">No summary available.</p>
@@ -147,34 +281,39 @@ export default function DetailPage() {
 
             {events.length > 0 && (
               <div className="grid gap-4 sm:grid-cols-2">
-                {events.map(event => (
-                  <Card key={event.id} className="overflow-hidden">
-                    <div className="h-1 bg-primary/20 w-full" />
-                    <CardContent className="p-4 flex items-start gap-4">
-                      <div className="bg-primary/10 p-2 rounded-lg text-primary mt-1">
-                        <Activity className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                          {event.eventType.replace(/_/g, " ")}
-                        </p>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-bold text-foreground">
-                            {event.eventType === "blood_pressure" ? `${event.systolic}/${event.diastolic}` : event.value}
-                          </span>
-                          {event.unit && <span className="text-sm font-medium text-muted-foreground">{event.unit}</span>}
+                {events.map(event => {
+                  const isBp = event.eventType === "blood_pressure_reading" || event.eventType === "blood_pressure";
+                  return (
+                    <Card key={event.id} className="overflow-hidden">
+                      <div className="h-1 bg-primary/20 w-full" />
+                      <CardContent className="p-4 flex items-start gap-4">
+                        <div className="bg-primary/10 p-2 rounded-lg text-primary mt-1">
+                          <Activity className="w-5 h-5" />
                         </div>
-                        {event.eventTime && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
-                            <Clock className="w-3 h-3" />
-                            {format(new Date(event.eventTime), "PPp")}
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                            {event.eventType.replace(/_/g, " ")}
+                          </p>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-bold text-foreground">
+                              {isBp
+                                ? `${event.systolic ?? "?"}/${event.diastolic ?? "?"}`
+                                : event.value ?? "—"}
+                            </span>
+                            {event.unit && <span className="text-sm font-medium text-muted-foreground">{event.unit}</span>}
                           </div>
-                        )}
-                        {event.notes && <p className="text-sm mt-2 text-muted-foreground border-t border-border pt-2">{event.notes}</p>}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                          {event.eventTime && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                              <Clock className="w-3 h-3" />
+                              {format(new Date(event.eventTime), "PPp")}
+                            </div>
+                          )}
+                          {event.notes && <p className="text-sm mt-2 text-muted-foreground border-t border-border pt-2">{event.notes}</p>}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
 
@@ -194,23 +333,23 @@ export default function DetailPage() {
                     <CardContent className="p-4">
                       {meal.name && <p className="font-medium text-foreground mb-2">{meal.name}</p>}
                       {meal.foods && <p className="text-sm text-muted-foreground mb-4">{meal.foods}</p>}
-                      
+
                       <div className="grid grid-cols-4 gap-2 text-center text-xs">
                         <div className="bg-muted/50 rounded py-2">
                           <span className="block text-muted-foreground mb-1">Carbs</span>
-                          <span className="font-semibold">{meal.carbs || '-'}g</span>
+                          <span className="font-semibold">{meal.carbs ?? '—'}g</span>
                         </div>
                         <div className="bg-muted/50 rounded py-2">
                           <span className="block text-muted-foreground mb-1">Protein</span>
-                          <span className="font-semibold">{meal.protein || '-'}g</span>
+                          <span className="font-semibold">{meal.protein ?? '—'}g</span>
                         </div>
                         <div className="bg-muted/50 rounded py-2">
                           <span className="block text-muted-foreground mb-1">Fat</span>
-                          <span className="font-semibold">{meal.fat || '-'}g</span>
+                          <span className="font-semibold">{meal.fat ?? '—'}g</span>
                         </div>
                         <div className="bg-muted/50 rounded py-2">
                           <span className="block text-muted-foreground mb-1">Fiber</span>
-                          <span className="font-semibold">{meal.fiber || '-'}g</span>
+                          <span className="font-semibold">{meal.fiber ?? '—'}g</span>
                         </div>
                       </div>
                     </CardContent>

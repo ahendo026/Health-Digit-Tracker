@@ -25,6 +25,8 @@ export const ListUploadsQueryParams = zod.object({
   page: zod.coerce.number().default(listUploadsQueryPageDefault),
   limit: zod.coerce.number().default(listUploadsQueryLimitDefault),
   classification: zod.coerce.string().optional(),
+  unreviewed: zod.coerce.boolean().optional(),
+  status: zod.coerce.string().optional(),
 });
 
 export const ListUploadsResponse = zod.object({

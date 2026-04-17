@@ -6,7 +6,7 @@ import { ClassificationBadge, StatusBadge } from "@/components/badges";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, ThumbsUp } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -60,12 +60,17 @@ export default function ReviewPage() {
   const queryClient = useQueryClient();
   const limit = 20;
 
-  const { data, isLoading } = useListUploads({ page, limit });
+  const { data, isLoading } = useListUploads({
+    page,
+    limit,
+    status: "analyzed",
+    unreviewed: true,
+  });
   const createReview = useCreateReview();
 
   const [reviewStates, setReviewStates] = useState<Record<number, ReviewState>>({});
 
-  const pendingUploads = data?.uploads.filter(u => u.status === "analyzed" || u.status === "pending") || [];
+  const pendingUploads = data?.uploads ?? [];
 
   const getState = (id: number): ReviewState =>
     reviewStates[id] || { classificationCorrect: "", valuesCorrect: "", useful: "", notes: "" };
@@ -75,6 +80,10 @@ export default function ReviewPage() {
       ...prev,
       [id]: { ...getState(id), ...patch },
     }));
+  };
+
+  const markAllCorrect = (id: number) => {
+    updateState(id, { classificationCorrect: "yes", valuesCorrect: "yes", useful: "yes" });
   };
 
   const handleSubmit = async (uploadId: number, classification: string | null) => {
@@ -103,7 +112,7 @@ export default function ReviewPage() {
         return next;
       });
 
-      toast({ title: "Review submitted" });
+      toast({ title: approved ? "Review submitted · approved" : "Review submitted" });
     } catch (err) {
       toast({ title: "Error", description: "Failed to submit review.", variant: "destructive" });
     }
@@ -113,7 +122,13 @@ export default function ReviewPage() {
     <Layout>
       <div className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-2">Review Queue</h1>
-        <p className="text-muted-foreground mb-6 sm:mb-8">Verify automated classifications to improve data quality.</p>
+        <p className="text-muted-foreground mb-6 sm:mb-8">
+          {isLoading
+            ? "Loading items that need review…"
+            : pendingUploads.length > 0
+              ? `${pendingUploads.length} item${pendingUploads.length === 1 ? "" : "s"} waiting for review. Confirm the classification and values, then submit.`
+              : "Verify automated classifications to improve data quality."}
+        </p>
 
         {isLoading ? (
           <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
@@ -121,14 +136,15 @@ export default function ReviewPage() {
           <Card className="bg-muted/30 border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
               <Check className="w-12 h-12 text-muted-foreground mb-4 opacity-50" />
-              <h3 className="text-lg font-semibold">All Caught Up</h3>
-              <p className="text-muted-foreground mt-2 max-w-sm">There are no pending uploads requiring your review right now.</p>
+              <h3 className="text-lg font-semibold">All caught up</h3>
+              <p className="text-muted-foreground mt-2 max-w-sm">No analyzed uploads are waiting for review right now.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
             {pendingUploads.map(upload => {
               const state = getState(upload.id);
+              const canSubmit = state.classificationCorrect !== "";
               return (
                 <Card key={upload.id} className="flex flex-col">
                   <CardHeader className="pb-3 border-b border-border bg-muted/20">
@@ -140,9 +156,12 @@ export default function ReviewPage() {
                         {format(new Date(upload.createdAt), "MMM d, HH:mm")}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <StatusBadge status={upload.status} />
                       <ClassificationBadge classification={upload.classification} />
+                      {upload.confidence !== null && upload.confidence !== undefined && (
+                        <span className="text-xs text-muted-foreground">{(upload.confidence * 100).toFixed(0)}% conf.</span>
+                      )}
                       {upload.sourceApp && (
                         <span className="text-xs text-muted-foreground">· {upload.sourceApp}</span>
                       )}
@@ -150,13 +169,16 @@ export default function ReviewPage() {
                   </CardHeader>
 
                   <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] border-b border-border">
-                    <div className="bg-muted sm:border-r border-b sm:border-b-0 border-border p-2 flex justify-center items-center">
+                    <Link
+                      href={`/uploads/${upload.id}`}
+                      className="bg-muted sm:border-r border-b sm:border-b-0 border-border p-2 flex justify-center items-center hover:bg-muted/70 transition-colors"
+                    >
                       <img
                         src={`/api/storage${upload.filePath}`}
                         alt={upload.originalFilename}
                         className="max-h-36 max-w-full object-contain rounded-sm"
                       />
-                    </div>
+                    </Link>
                     <div className="p-3 text-sm">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Summary</p>
                       <p className="text-foreground line-clamp-5">
@@ -166,6 +188,17 @@ export default function ReviewPage() {
                   </div>
 
                   <CardContent className="p-4 flex-1 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 -ml-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => markAllCorrect(upload.id)}
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5 mr-1.5" /> All correct
+                      </Button>
+                    </div>
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-sm font-medium">Classification correct?</label>
                       <YesNo value={state.classificationCorrect} onChange={(v) => updateState(upload.id, { classificationCorrect: v })} />
@@ -194,7 +227,8 @@ export default function ReviewPage() {
                     <Button
                       className="w-full"
                       onClick={() => handleSubmit(upload.id, upload.classification)}
-                      disabled={createReview.isPending || (state.classificationCorrect === "" && state.valuesCorrect === "" && state.useful === "")}
+                      disabled={createReview.isPending || !canSubmit}
+                      title={!canSubmit ? "Answer 'Classification correct?' first" : undefined}
                     >
                       {createReview.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
                       Submit Review

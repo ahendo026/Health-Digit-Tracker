@@ -211,6 +211,8 @@ export type ListUploadsParams = {
   page?: number;
   limit?: number;
   classification?: string;
+  unreviewed?: boolean;
+  status?: string;
 };
 
 export type ListOutcomesParams = {

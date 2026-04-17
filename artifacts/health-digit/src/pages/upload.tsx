@@ -14,12 +14,12 @@ export default function UploadPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [file, setFile] = useState<File | null>(null);
   const [sourceApp, setSourceApp] = useState("");
   const [notes, setNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  
+
   const analyzeUpload = useAnalyzeUpload();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,19 +51,24 @@ export default function UploadPage() {
       });
 
       if (!response.ok) throw new Error("Upload failed");
-      
+
       const upload = await response.json();
-      
-      // Trigger analysis immediately
-      await analyzeUpload.mutateAsync({ id: upload.id });
-      
-      // Invalidate queries
+
+      // Fire-and-forget analysis so the user lands on the detail page
+      // immediately and can watch live status updates there.
+      analyzeUpload
+        .mutateAsync({ id: upload.id })
+        .catch((err) => console.error("Analysis kick-off failed", err))
+        .finally(() => {
+          queryClient.invalidateQueries({ queryKey: getGetUploadSummaryQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListUploadsQueryKey() });
+        });
+
       queryClient.invalidateQueries({ queryKey: getGetUploadSummaryQueryKey() });
       queryClient.invalidateQueries({ queryKey: getListUploadsQueryKey() });
-      
-      toast({ title: "Upload successful", description: "Image is being analyzed." });
+
+      toast({ title: "Upload received", description: "Analysis started — opening details…" });
       setLocation(`/uploads/${upload.id}`);
-      
     } catch (error) {
       console.error(error);
       toast({ title: "Upload failed", description: "There was an error uploading your file.", variant: "destructive" });
@@ -75,16 +80,17 @@ export default function UploadPage() {
   return (
     <Layout>
       <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-6">New Upload</h1>
-        
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-2">New Upload</h1>
+        <p className="text-sm text-muted-foreground mb-6">Drop a screenshot — analysis runs automatically and you can review the result on the next page.</p>
+
         <Card>
           <CardHeader>
             <CardTitle>Data Capture</CardTitle>
             <CardDescription>Upload a screenshot from your health tracker or wearable app.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            
-            <div 
+
+            <div
               className={`border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center transition-colors cursor-pointer ${
                 file ? "border-primary/50 bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
               }`}
@@ -92,14 +98,14 @@ export default function UploadPage() {
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
             >
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*" 
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
                 onChange={handleFileChange}
               />
-              
+
               {file ? (
                 <div className="flex flex-col items-center gap-3">
                   <div className="p-3 bg-primary/10 rounded-full text-primary">
@@ -109,9 +115,9 @@ export default function UploadPage() {
                     <p className="font-medium text-foreground">{file.name}</p>
                     <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="mt-2"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -147,7 +153,7 @@ export default function UploadPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Notes <span className="text-muted-foreground font-normal">(optional)</span></label>
-              <Textarea 
+              <Textarea
                 placeholder="Add any context about this screenshot..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -157,16 +163,16 @@ export default function UploadPage() {
             </div>
 
             <div className="flex justify-end">
-              <Button 
-                onClick={handleUpload} 
+              <Button
+                onClick={handleUpload}
                 disabled={!file || isUploading}
                 size="lg"
               >
                 {isUploading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {isUploading ? "Uploading & Analyzing..." : "Upload Screenshot"}
+                {isUploading ? "Uploading…" : "Upload & Analyze"}
               </Button>
             </div>
-            
+
           </CardContent>
         </Card>
       </div>

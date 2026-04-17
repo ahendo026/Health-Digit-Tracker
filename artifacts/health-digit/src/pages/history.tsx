@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { useListUploads } from "@workspace/api-client-react";
 import { ClassificationBadge, StatusBadge } from "@/components/badges";
@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight, FileImage } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function HistoryPage() {
+  const [, setLocation] = useLocation();
   const [page, setPage] = useState(1);
   const limit = 10;
   const { data, isLoading } = useListUploads({ page, limit });
@@ -18,8 +19,9 @@ export default function HistoryPage() {
   return (
     <Layout>
       <div className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-6">Upload History</h1>
-        
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-2">Upload History</h1>
+        <p className="text-sm text-muted-foreground mb-6">All screenshots you've uploaded — newest first. Click a row to inspect the analysis.</p>
+
         <Card>
           <CardHeader className="pb-4 border-b border-border">
             <CardTitle className="text-lg">All Screenshots</CardTitle>
@@ -28,11 +30,11 @@ export default function HistoryPage() {
             <Table className="min-w-[640px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Uploaded At</TableHead>
-                  <TableHead>Source App</TableHead>
+                  <TableHead className="pl-6">Uploaded</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Classification</TableHead>
-                  <TableHead>Confidence</TableHead>
+                  <TableHead className="text-right pr-6">Confidence</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -43,23 +45,27 @@ export default function HistoryPage() {
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                     </TableRow>
                   ))
                 ) : data?.uploads.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                      No uploads found.
+                      No uploads yet. Head to <span className="font-medium">New Upload</span> to add your first screenshot.
                     </TableCell>
                   </TableRow>
                 ) : (
                   data?.uploads.map((upload) => (
-                    <TableRow key={upload.id} className="hover:bg-muted/50 transition-colors">
+                    <TableRow
+                      key={upload.id}
+                      className="hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => setLocation(`/uploads/${upload.id}`)}
+                    >
                       <TableCell className="pl-6">
-                        <Link href={`/uploads/${upload.id}`} className="flex items-center gap-2 font-medium text-primary hover:underline whitespace-nowrap">
+                        <div className="flex items-center gap-2 font-medium text-primary whitespace-nowrap">
                           <FileImage className="w-4 h-4 text-muted-foreground" />
                           {format(new Date(upload.createdAt), "MMM d, yyyy HH:mm")}
-                        </Link>
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm">
                         {upload.sourceApp || <span className="text-muted-foreground">—</span>}
@@ -70,7 +76,7 @@ export default function HistoryPage() {
                       <TableCell>
                         <ClassificationBadge classification={upload.classification} />
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-muted-foreground text-right pr-6">
                         {upload.confidence !== null && upload.confidence !== undefined
                           ? `${(upload.confidence * 100).toFixed(0)}%`
                           : "—"}
@@ -80,23 +86,23 @@ export default function HistoryPage() {
                 )}
               </TableBody>
             </Table>
-            
+
             {data && data.total > 0 && (
               <div className="flex items-center justify-between p-4 border-t border-border">
                 <p className="text-sm text-muted-foreground">
                   Showing {(page - 1) * limit + 1} to {Math.min(page * limit, data.total)} of {data.total} entries
                 </p>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
                   >
                     <ChevronLeft className="w-4 h-4 mr-1" /> Prev
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => setPage(p => p + 1)}
                     disabled={page * limit >= data.total}

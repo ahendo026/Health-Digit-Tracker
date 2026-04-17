@@ -51,6 +51,14 @@ paths:
           name: classification
           schema:
             type: string
+        - in: query
+          name: unreviewed
+          schema:
+            type: boolean
+        - in: query
+          name: status
+          schema:
+            type: string
       responses:
         "200":
           description: List of uploads

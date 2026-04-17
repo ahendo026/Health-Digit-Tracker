@@ -84,17 +84,26 @@ router.get("/uploads", async (req, res): Promise<void> => {
   const page = parsed.success ? (parsed.data.page ?? 1) : 1;
   const limit = parsed.success ? (parsed.data.limit ?? 20) : 20;
   const classification = parsed.success ? parsed.data.classification : undefined;
+  const status = parsed.success ? parsed.data.status : undefined;
+  const unreviewed = parsed.success ? parsed.data.unreviewed : undefined;
 
   const offset = (page - 1) * limit;
 
-  const conditions = classification
-    ? [eq(uploadsTable.classification, classification)]
-    : [];
+  const filters = [];
+  if (classification) filters.push(eq(uploadsTable.classification, classification));
+  if (status) filters.push(eq(uploadsTable.status, status));
+  if (unreviewed) {
+    filters.push(
+      sql`NOT EXISTS (SELECT 1 FROM ${reviewsTable} WHERE ${reviewsTable.uploadId} = ${uploadsTable.id})`,
+    );
+  }
+
+  const whereClause = filters.length > 0 ? and(...filters) : undefined;
 
   const uploads = await db
     .select()
     .from(uploadsTable)
-    .where(conditions.length > 0 ? conditions[0] : undefined)
+    .where(whereClause)
     .orderBy(desc(uploadsTable.createdAt))
     .limit(limit)
     .offset(offset);
@@ -102,7 +111,7 @@ router.get("/uploads", async (req, res): Promise<void> => {
   const totalResult = await db
     .select({ count: count() })
     .from(uploadsTable)
-    .where(conditions.length > 0 ? conditions[0] : undefined);
+    .where(whereClause);
 
   res.json({
     uploads,
