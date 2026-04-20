@@ -150,7 +150,11 @@ lib/
   api-spec/                @workspace/api-spec     ← OpenAPI spec + Orval config
   api-zod/                 @workspace/api-zod      ← generated, do not edit
   api-client-react/        @workspace/api-client-react  ← generated, do not edit
+render.yaml                ← two-service Render blueprint (API + static frontend)
+scripts/refresh-portproxy.ps1   ← Windows helper for WSL + Tailscale dev setups
 ```
+
+Root `package.json` exposes `dev:api` and `dev:frontend` convenience scripts that forward to the workspace `dev` scripts with the right env vars pre-set.
 
 **Supply-chain security**: `pnpm-workspace.yaml` enforces a minimum package release age of 1,440 minutes (24 hours). New packages published in the last day are blocked. This mitigates most publish-time supply-chain attacks.
 
@@ -232,13 +236,14 @@ Display: resolveUploadImageUrl("local://local_uploads/abc-123.jpg")
 
 ### Uploads Route — `artifacts/api-server/src/routes/uploads.ts`
 
-**Purpose**: Handles the full lifecycle of an upload — creation, analysis trigger, retrieval, review submission.
+**Purpose**: Handles the full lifecycle of an upload — creation, analysis trigger, retrieval, deletion, manual date correction, and review submission.
 
 **Responsibilities**:
 - Accept multipart file uploads and write to local disk or GCS
-- Insert and update `uploads` table rows
+- Insert and update `uploads` table rows (including `captured_at` from analysis or `PATCH /captured-at`)
 - Delegate LLM analysis to `analyzeScreenshot()`
-- Persist normalized data into `events`, `meals`, `workouts`
+- Persist normalized data into `events`, `meals`, `workouts` (all scoped to `upload_id`; integer fields rounded via `Math.round()`)
+- Cascade-delete children + stored file on `DELETE /api/uploads/:id`
 - Accept manual review submissions (`POST /reviews`)
 - Serve paginated/filtered upload lists and aggregate summaries
 
@@ -448,6 +453,30 @@ Get a single upload with all related data.
 
 ---
 
+### `DELETE /api/uploads/:id`
+
+Delete an upload and all its child records (reviews, events, workouts, meals, llm_runs), plus the stored file in GCS/local disk (best-effort; the DB cleanup always runs).
+
+**Response `204`**: empty body
+**Response `404`**: `{ "error": "Upload not found" }`
+
+---
+
+### `PATCH /api/uploads/:id/captured-at`
+
+Manually set the `capturedAt` date/time on an upload. Used by the Detail page when the LLM couldn't extract a date from the image, or to correct one it got wrong.
+
+**Request body**:
+```json
+{ "capturedAt": "2026-04-19T14:42:00.000Z" }
+```
+
+**Response `200`**: the updated `Upload` record
+**Response `400`**: `{ "error": "capturedAt is not a valid date" }`
+**Response `404`**: `{ "error": "Upload not found" }`
+
+---
+
 ### `POST /api/uploads/:id/analyze`
 
 Trigger AI analysis for an upload. Sets `status` to `analyzing`, calls Claude Sonnet 4.6, then updates to `analyzed` or `failed`.
@@ -583,7 +612,8 @@ Create `artifacts/api-server/.env` for local development. In production, set as 
 |---|---|---|
 | `NODE_ENV` | — | Set to `production` to disable local storage mode and dev routes |
 | `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` | Anthropic default | Override the Anthropic API base URL (useful for proxies or enterprise gateways) |
-| `PRIVATE_OBJECT_DIR` | — | GCS bucket path for private uploads, e.g. `/mybucket/uploads`. If absent, local disk is used. |
+| `PRIVATE_OBJECT_DIR` | — | GCS bucket path for private uploads, e.g. `/mybucket/uploads`. Leading slash added automatically if omitted. If absent, local disk is used. |
+| `GCS_CREDENTIALS_JSON` | — | Service account JSON (single-line string). When set, `objectStorage.ts` uses the GCS SDK's native signing. When absent, falls back to Replit's sidecar at `http://127.0.0.1:1106`. Required for non-Replit deployments. |
 | `PUBLIC_OBJECT_SEARCH_PATHS` | — | Comma-separated GCS paths for public static assets |
 | `LOG_LEVEL` | `info` | Pino log level: `trace` · `debug` · `info` · `warn` · `error` |
 
@@ -625,12 +655,21 @@ Active when: `PRIVATE_OBJECT_DIR` is not set AND `NODE_ENV !== "production"`.
 
 Files persist on disk across server restarts as long as the `artifacts/api-server/local_uploads/` directory is not deleted.
 
-### Production mode (GCS via Replit Object Storage)
+### Production mode (GCS)
 
-1. Server generates a presigned PUT URL via the Replit sidecar
-2. multer buffers the upload; server PUTs directly to GCS
-3. The GCS URL is normalized to an internal `/objects/<uuid>` path
+Two auth paths are supported in `artifacts/api-server/src/lib/objectStorage.ts`:
+
+- **`GCS_CREDENTIALS_JSON` set** (Render, Cloud Run, Fly, self-hosted) — the `Storage` client loads the service account JSON directly; `signObjectURL()` uses the SDK's native `file.getSignedUrl({ version: "v4" })`.
+- **Not set** (default on Replit) — the `Storage` client authenticates via external-account federation against the Replit sidecar at `http://127.0.0.1:1106/token`, and `signObjectURL()` calls the sidecar's `/object-storage/signed-object-url` endpoint.
+
+Upload flow (identical for both):
+
+1. Server generates a presigned PUT URL
+2. multer buffers the upload; the server PUTs directly to GCS
+3. The GCS URL is normalized to an internal `/objects/<uuid>` path via `normalizeObjectEntityPath()`
 4. `filePath` stored in DB: `/objects/<uuid>`
+
+`getPrivateObjectDir()` auto-prepends a leading slash to `PRIVATE_OBJECT_DIR` if omitted, so `my-bucket/uploads` and `/my-bucket/uploads` both work.
 
 ### URI scheme reference
 
@@ -648,12 +687,12 @@ Files persist on disk across server restarts as long as the `artifacts/api-serve
 "local://local_uploads/abc.jpg"
   → "http://localhost:8080/api/storage/local_uploads/abc.jpg"
 
-// production (relative to same origin):
+// production (API on a different origin than the frontend):
 "/objects/abc-uuid"
-  → "/api/storage/objects/abc-uuid"
+  → "https://healthdigits-api.onrender.com/api/storage/objects/abc-uuid"
 ```
 
-This function is the **only** place where a stored `filePath` is converted to a browser URL. Always use it for `<img src>` attributes referencing uploads.
+Both branches prefix `API_BASE` so the function works in same-origin and cross-origin deployments alike. It is the **only** place where a stored `filePath` is converted to a browser URL — always use it for `<img src>` attributes referencing uploads.
 
 ---
 
@@ -703,6 +742,8 @@ Key per-classification rules:
 - **workout_event**: use `workouts` only (heart rate zones as `{ zone1..zone5 }`)
 - **unknown**: confidence < 0.5, empty `data: {}`
 
+The prompt also asks for **`capturedAt`** — the date/time visible in the screenshot itself (app header, recording timestamp, clock, activity date). Emitted as ISO 8601; omitted when no date is visible. Stored on `uploads.captured_at` so the Detail page can render a "Screen Capture" date distinct from the server-assigned "Uploaded" date. Users can manually enter or override this via `PATCH /api/uploads/:id/captured-at` when the LLM could not extract it.
+
 ### Expected response shape
 
 ```json
@@ -710,6 +751,7 @@ Key per-classification rules:
   "classification": "blood_pressure_reading",
   "confidence": 0.99,
   "summary": "An Omron blood pressure monitor displaying 129/87 mmHg at 7:00 AM, flagged HIGH.",
+  "capturedAt": "2026-01-28T07:00:00.000Z",
   "data": {
     "events": [
       {
@@ -775,6 +817,7 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
 | `classification` | text | Set after analysis |
 | `confidence` | real | 0.0 – 1.0; set after analysis |
 | `summary` | text | Human-readable AI summary |
+| `captured_at` | timestamptz | Date/time extracted from the image by the LLM, or manually set via `PATCH /api/uploads/:id/captured-at`. Independent of `created_at`. |
 | `status` | text | `pending` → `analyzing` → `analyzed` \| `failed` |
 | `notes` | text | User-provided context |
 | `created_at` / `updated_at` | timestamptz | |
@@ -815,6 +858,7 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | serial PK | |
+| `upload_id` | integer FK → uploads | Scopes the meal to its source upload. The detail route filters by this so each upload shows only its own extracted meals. |
 | `name` | text | Meal name |
 | `meal_time` | timestamptz | |
 | `calories` | real | kcal |
@@ -832,6 +876,7 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | serial PK | |
+| `upload_id` | integer FK → uploads | Scopes the workout to its source upload. Integer fields (`duration`, HR) are rounded server-side via `Math.round()` before insert to tolerate fractional values from the LLM. |
 | `workout_type` | text | `run`, `ride`, `strength`, etc. |
 | `workout_time` | timestamptz | |
 | `duration` | integer | Minutes |
@@ -862,7 +907,7 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
 ### Upload flow
 
 1. User visits `/` (Upload page)
-2. File is selected via click or drag-and-drop (`accept="image/*"`)
+2. A mode toggle picks between **Upload image** (file picker / drag-and-drop) and **Take photo** (device camera via `capture="environment"` attribute). Both toggles stay visible at all times.
 3. Optional `sourceApp` and `notes` fields available
 4. "Upload & Analyze" submits `POST /api/uploads` as `multipart/form-data`
 5. On success, immediately fires `POST /api/uploads/:id/analyze` (fire-and-forget — does not wait)
@@ -877,22 +922,27 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
    - Polling stops
    - Classification badge + confidence % appear in the header
    - AI-generated summary is rendered
-   - Extracted data renders in typed cards (events / meals / workouts)
+   - Extracted data renders in typed cards (events / meals / workouts) — **filtered by `upload_id`** so only this upload's data is shown
 4. On `status: "failed"`: a red banner with a "Re-analyze" button appears
+5. **Screen Capture date row** above the image:
+   - Shows the LLM-extracted `upload.capturedAt` when available, with an inline pencil to edit
+   - Shows "Enter date" when not — opens a `datetime-local` input pre-filled with the current date. Save calls `PATCH /api/uploads/:id/captured-at`.
+6. **Newer / Older navigation** at the top of the page walks through the upload list (newest first) without returning to the History page. Shows "N of M" position indicator; disabled at the ends.
+7. **Delete button** (trash icon next to the status badges) opens a confirmation dialog. Confirming calls `DELETE /api/uploads/:id`, which removes the upload, all child records, and the stored file (best-effort), then redirects to `/history`.
 
 ### Image rendering
 
 Images are rendered using `resolveUploadImageUrl(upload.filePath)`:
-- Local dev: absolute URL to `http://localhost:8080/api/storage/local_uploads/<name>`
-- Production: relative URL `/api/storage/objects/<uuid>`
+- Local dev: `http://localhost:8080/api/storage/local_uploads/<name>`
+- Production: `${VITE_API_BASE_URL}/api/storage/objects/<uuid>` (always absolute — same-origin and cross-origin deployments both work)
 
-The `<img>` element is displayed in a checkered background panel with the original filename and file size shown above it.
+The image card also shows a footer with **Screen Capture** (from `upload.capturedAt`) above **Uploaded** (from `upload.createdAt`), followed by the MIME type / file size bar and the `<img>` on a checkered background.
 
 ### Review flow
 
 - The amber "Ready for review" banner links to `/review`
 - Review queue shows all unreviewed analyzed uploads
-- Each card shows the image thumbnail, AI summary, and classification
+- Each card shows the image thumbnail, AI summary, classification, and an expandable **Raw LLM Output** section (lazy-loads the detail payload on expand via `getGetUploadQueryOptions` + `useQuery` to avoid N+1 requests on page load)
 - Reviewer confirms or overrides: Classification correct? Values correct? Useful?
 - Optional free-text notes
 - "Submit Review" calls `POST /api/reviews`; the card is removed from the queue
@@ -1058,10 +1108,12 @@ This creates all 12 tables. Run again any time `lib/db/src/schema/uploads.ts` ch
 **5. Start the API server** (Terminal 1)
 
 ```bash
-pnpm --filter @workspace/api-server run dev
+pnpm run dev:api
+# or the workspace script directly:
+# pnpm --filter @workspace/api-server run dev
 ```
 
-This builds with esbuild first, then starts with `node --enable-source-maps ./dist/index.mjs`. Output:
+Both build with esbuild first, then start with `node --enable-source-maps ./dist/index.mjs`. The root `dev:api` just forces `PORT=8080`. Output:
 ```
 {"level":"info","port":8080,"msg":"Server listening"}
 {"level":"info","dir":"/path/to/local_uploads","msg":"Local file storage mode active"}
@@ -1070,10 +1122,12 @@ This builds with esbuild first, then starts with `node --enable-source-maps ./di
 **6. Start the frontend** (Terminal 2)
 
 ```bash
-pnpm --filter @workspace/health-digit run dev
+pnpm run dev:frontend
+# or the workspace script directly:
+# pnpm --filter @workspace/health-digit run dev
 ```
 
-Output:
+The root `dev:frontend` injects a Tailscale-hostname `VITE_API_BASE_URL` so the app works when loaded from a phone or another machine on the tailnet. For plain localhost development, the workspace script is equivalent. Output:
 ```
   VITE v7.x.x  ready in 800ms
   ➜  Local:   http://localhost:24283/
@@ -1134,11 +1188,21 @@ pnpm --filter @workspace/api-spec run codegen
 
 ## 13. Production Considerations
 
+### Deploying to Render (recommended)
+
+The repo includes [`render.yaml`](../render.yaml) defining two services:
+
+- **`healthdigits-api`** — Web Service (Node), builds `@workspace/api-server`, runs `dist/index.mjs` on port 8080
+- **`healthdigits-frontend`** — Static Site, builds `@workspace/health-digit`, publishes `artifacts/health-digit/dist/public`, with a `/*` → `/index.html` rewrite for client-side routing
+
+Connect the repo via **New → Blueprint** on Render. Set secrets on the API service (`DATABASE_URL`, `AI_INTEGRATIONS_ANTHROPIC_API_KEY`, `GCS_CREDENTIALS_JSON`, `PRIVATE_OBJECT_DIR`), then set `VITE_API_BASE_URL` on the frontend service to the API's public URL. Full walkthrough in [docs/DEPLOYMENT.md](DEPLOYMENT.md).
+
 ### Replacing local storage with GCS
 
-Set `PRIVATE_OBJECT_DIR` in the server environment:
+Set `PRIVATE_OBJECT_DIR` in the server environment. On non-Replit hosts, also set `GCS_CREDENTIALS_JSON`:
 ```bash
 PRIVATE_OBJECT_DIR=/mybucket/uploads
+GCS_CREDENTIALS_JSON={"type":"service_account",...}   # single-line JSON
 PUBLIC_OBJECT_SEARCH_PATHS=/mybucket/public
 ```
 
@@ -1147,6 +1211,7 @@ The local storage route (`GET /api/storage/local_uploads/:filename`) is not regi
 Existing uploads stored with `local://` paths will break if the server switches to GCS mode without migrating the files. To migrate:
 1. Copy all files from `local_uploads/` to the GCS bucket under the `uploads/` prefix
 2. Update `file_path` in the `uploads` table: replace `local://local_uploads/` with `/objects/uploads/`
+3. Or delete the broken records — the Detail page has a delete button that cascades through all child tables and removes the stored file.
 
 ### Security
 
@@ -1178,7 +1243,9 @@ Existing uploads stored with `local://` paths will break if the server switches 
 - [ ] `DATABASE_URL` set to Neon production DB
 - [ ] `AI_INTEGRATIONS_ANTHROPIC_API_KEY` set
 - [ ] `PRIVATE_OBJECT_DIR` set (GCS bucket path)
+- [ ] `GCS_CREDENTIALS_JSON` set (required off-Replit — Render, Cloud Run, etc.)
 - [ ] `NODE_ENV=production`
+- [ ] Frontend `VITE_API_BASE_URL` points at the deployed API origin
 - [ ] `pnpm --filter @workspace/db run push` run against production DB
 - [ ] `pnpm run build` succeeds with no type errors
 - [ ] `GET /api/healthz` returns `200 OK`

@@ -39,6 +39,7 @@ This file contains Replit-specific context. For full documentation see:
 |---|---|
 | `PRIVATE_OBJECT_DIR` | GCS path for private uploads (e.g. `/mybucket/uploads`). If unset, local disk storage is used. |
 | `PUBLIC_OBJECT_SEARCH_PATHS` | Comma-separated GCS paths for public assets |
+| `GCS_CREDENTIALS_JSON` | _Not needed on Replit._ When set (on Render, Cloud Run, etc.), the app bypasses the Replit sidecar and authenticates directly with the supplied service account JSON. |
 
 ## Health check
 
@@ -52,8 +53,8 @@ GET /api/healthz  →  { "status": "ok" }
 pnpm install                                          # install dependencies
 pnpm --filter @workspace/db run push                  # push DB schema
 pnpm run build                                        # typecheck + build all
-pnpm --filter @workspace/api-server run start         # start API server
-pnpm --filter @workspace/health-digit run dev         # start frontend dev server
+pnpm run dev:api                                      # start API server (PORT=8080)
+pnpm run dev:frontend                                 # start frontend dev server
 pnpm --filter @workspace/api-spec run codegen         # regenerate API types from OpenAPI
 ```
 

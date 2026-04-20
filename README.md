@@ -47,13 +47,13 @@ pnpm --filter @workspace/db run push
 
 ```bash
 # Terminal 1 — API server (port 8080)
-pnpm --filter @workspace/api-server run dev
+pnpm run dev:api
 
-# Terminal 2 — Frontend (port 24283)
-pnpm --filter @workspace/health-digit run dev
+# Terminal 2 — Frontend (port 24283, host 0.0.0.0 for phone/tailnet testing)
+pnpm run dev:frontend
 ```
 
-Open **http://localhost:24283**
+Open **http://localhost:24283**. For plain localhost-only testing you can still use the workspace scripts directly: `pnpm --filter @workspace/api-server run dev` and `pnpm --filter @workspace/health-digit run dev`.
 
 ### Stop
 
@@ -121,4 +121,5 @@ pnpm --filter @workspace/api-spec run codegen    # regenerate API types from Ope
 | Document | Purpose |
 |---|---|
 | [docs/SYSTEM.md](docs/SYSTEM.md) | Complete system documentation (architecture, API, schema, debugging, deployment) |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Render / production deployment |
 | [CLAUDE.md](CLAUDE.md) | Claude Code project guidance |
