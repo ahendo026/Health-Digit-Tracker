@@ -223,9 +223,15 @@ router.get("/uploads/:id", async (req, res): Promise<void> => {
     .from(eventsTable)
     .where(eq(eventsTable.uploadId, params.data.id));
 
-  const workouts = await db.select().from(workoutsTable);
+  const workouts = await db
+    .select()
+    .from(workoutsTable)
+    .where(eq(workoutsTable.uploadId, params.data.id));
 
-  const meals = await db.select().from(mealsTable);
+  const meals = await db
+    .select()
+    .from(mealsTable)
+    .where(eq(mealsTable.uploadId, params.data.id));
 
   const reviews = await db
     .select()
@@ -344,6 +350,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
     if (analysisResult.data.meals) {
       for (const meal of analysisResult.data.meals) {
         await db.insert(mealsTable).values({
+          uploadId: params.data.id,
           name: meal.name ?? null,
           mealTime: safeDate(meal.mealTime),
           calories: meal.calories ?? null,
@@ -363,6 +370,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
         const safeInt = (v: number | undefined | null): number | null =>
           v != null ? Math.round(v) : null;
         await db.insert(workoutsTable).values({
+          uploadId: params.data.id,
           workoutType: workout.workoutType ?? null,
           workoutTime: safeDate(workout.workoutTime),
           duration: safeInt(workout.duration),

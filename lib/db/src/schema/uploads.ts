@@ -58,6 +58,7 @@ export const eventsTable = pgTable("events", {
 
 export const mealsTable = pgTable("meals", {
   id: serial("id").primaryKey(),
+  uploadId: integer("upload_id").references(() => uploadsTable.id),
   name: text("name"),
   mealTime: timestamp("meal_time", { withTimezone: true }),
   calories: real("calories"),
@@ -73,6 +74,7 @@ export const mealsTable = pgTable("meals", {
 
 export const workoutsTable = pgTable("workouts", {
   id: serial("id").primaryKey(),
+  uploadId: integer("upload_id").references(() => uploadsTable.id),
   workoutType: text("workout_type"),
   workoutTime: timestamp("workout_time", { withTimezone: true }),
   duration: integer("duration"),
