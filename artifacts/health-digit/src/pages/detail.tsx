@@ -121,7 +121,7 @@ export default function DetailPage() {
             </h1>
             <p className="text-sm text-muted-foreground mt-1 truncate">
               {upload.sourceApp ? <><span className="font-medium text-foreground">{upload.sourceApp}</span> · </> : null}
-              {upload.originalFilename} · {format(new Date(upload.createdAt), "MMM d, yyyy 'at' h:mm a")}
+              {upload.originalFilename}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -203,6 +203,32 @@ export default function DetailPage() {
                   alt={upload.originalFilename}
                   className="max-w-full h-auto rounded shadow-sm border border-border/50 max-h-[500px] object-contain"
                 />
+              </div>
+              <div className="border-t border-border divide-y divide-border text-xs">
+                <div className="flex items-center justify-between px-3 py-2">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" /> Uploaded
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {format(new Date(upload.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                  </span>
+                </div>
+                {(() => {
+                  const captureTime =
+                    events[0]?.eventTime ??
+                    workouts[0]?.workoutTime ??
+                    meals[0]?.mealTime ?? null;
+                  return captureTime ? (
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Clock className="w-3 h-3" /> Screen Capture
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {format(new Date(captureTime), "MMM d, yyyy 'at' h:mm a")}
+                      </span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
             </Card>
 
