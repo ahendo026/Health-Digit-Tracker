@@ -4,7 +4,7 @@ import { Layout } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud, File, X, Loader2 } from "lucide-react";
+import { UploadCloud, File, X, Loader2, Camera } from "lucide-react";
 import { useAnalyzeUpload, getGetUploadSummaryQueryKey, getListUploadsQueryKey } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,6 +16,9 @@ export default function UploadPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const [mode, setMode] = useState<"upload" | "camera">("upload");
   const [file, setFile] = useState<File | null>(null);
   const [sourceApp, setSourceApp] = useState("");
   const [notes, setNotes] = useState("");
@@ -91,55 +94,119 @@ export default function UploadPage() {
           </CardHeader>
           <CardContent className="space-y-6">
 
-            <div
-              className={`border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center transition-colors cursor-pointer ${
-                file ? "border-primary/50 bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
-              }`}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/*"
-                onChange={handleFileChange}
-              />
-
-              {file ? (
-                <div className="flex flex-col items-center gap-3">
-                  <div className="p-3 bg-primary/10 rounded-full text-primary">
-                    <File className="w-8 h-8" />
-                  </div>
-                  <div className="text-center">
-                    <p className="font-medium text-foreground">{file.name}</p>
-                    <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setFile(null);
-                    }}
-                  >
-                    <X className="w-4 h-4 mr-2" /> Remove
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <div className="p-4 bg-muted rounded-full text-muted-foreground">
-                    <UploadCloud className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Click to upload or drag and drop</p>
-                    <p className="text-sm text-muted-foreground mt-1">PNG, JPG or JPEG (max 10MB)</p>
-                  </div>
-                </div>
-              )}
+            {/* Mode toggle */}
+            <div className="flex rounded-lg border border-input overflow-hidden w-fit">
+              <button
+                type="button"
+                onClick={() => { setMode("upload"); setFile(null); }}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  mode === "upload" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <UploadCloud className="w-4 h-4" /> Upload image
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode("camera"); setFile(null); }}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  mode === "camera" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Camera className="w-4 h-4" /> Take photo
+              </button>
             </div>
+
+            {/* Hidden file inputs */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={handleFileChange}
+            />
+            <input
+              type="file"
+              ref={cameraInputRef}
+              className="hidden"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileChange}
+            />
+
+            {mode === "upload" ? (
+              <div
+                className={`border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center transition-colors cursor-pointer ${
+                  file ? "border-primary/50 bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
+                }`}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {file ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="p-3 bg-primary/10 rounded-full text-primary">
+                      <File className="w-8 h-8" />
+                    </div>
+                    <div className="text-center">
+                      <p className="font-medium text-foreground">{file.name}</p>
+                      <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                    >
+                      <X className="w-4 h-4 mr-2" /> Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <div className="p-4 bg-muted rounded-full text-muted-foreground">
+                      <UploadCloud className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Click to upload or drag and drop</p>
+                      <p className="text-sm text-muted-foreground mt-1">PNG, JPG or JPEG (max 10MB)</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center gap-4">
+                {file ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="p-3 bg-primary/10 rounded-full text-primary">
+                      <File className="w-8 h-8" />
+                    </div>
+                    <div className="text-center">
+                      <p className="font-medium text-foreground">{file.name}</p>
+                      <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFile(null)}
+                    >
+                      <X className="w-4 h-4 mr-2" /> Retake
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="p-4 bg-muted rounded-full text-muted-foreground">
+                      <Camera className="w-8 h-8" />
+                    </div>
+                    <div className="text-center">
+                      <p className="font-medium text-foreground">Capture a photo</p>
+                      <p className="text-sm text-muted-foreground mt-1">Opens your device camera</p>
+                    </div>
+                    <Button variant="outline" onClick={() => cameraInputRef.current?.click()}>
+                      <Camera className="w-4 h-4 mr-2" /> Open camera
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Source App <span className="text-muted-foreground font-normal">(optional)</span></label>
