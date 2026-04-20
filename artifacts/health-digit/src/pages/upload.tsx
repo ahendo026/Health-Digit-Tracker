@@ -1,10 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud, File, X, Loader2, Camera } from "lucide-react";
+import { UploadCloud, X, Loader2, Camera, ImageIcon, RefreshCw } from "lucide-react";
 import { useAnalyzeUpload, getGetUploadSummaryQueryKey, getListUploadsQueryKey } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,27 +15,52 @@ export default function UploadPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [mode, setMode] = useState<"upload" | "camera">("upload");
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [sourceApp, setSourceApp] = useState("");
   const [notes, setNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
   const analyzeUpload = useAnalyzeUpload();
 
+  // Create/revoke object URL for preview
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files?.[0]) {
       setFile(e.target.files[0]);
+      // Reset input so the same file can be re-selected
+      e.target.value = "";
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer.files?.[0]) {
       setFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const clearFile = () => {
+    setFile(null);
+    setPreviewUrl(null);
+  };
+
+  const switchMode = (next: "upload" | "camera") => {
+    if (next !== mode) {
+      clearFile();
+      setMode(next);
     }
   };
 
@@ -58,8 +83,6 @@ export default function UploadPage() {
 
       const upload = await response.json();
 
-      // Fire-and-forget analysis so the user lands on the detail page
-      // immediately and can watch live status updates there.
       analyzeUpload
         .mutateAsync({ id: upload.id })
         .catch((err) => console.error("Analysis kick-off failed", err))
@@ -83,133 +106,115 @@ export default function UploadPage() {
 
   return (
     <Layout>
-      <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mb-2">New Upload</h1>
-        <p className="text-sm text-muted-foreground mb-6">Drop a screenshot — analysis runs automatically and you can review the result on the next page.</p>
+      <div className="flex-1 p-4 sm:p-6 max-w-2xl mx-auto w-full">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground mb-1">New Upload</h1>
+        <p className="text-sm text-muted-foreground mb-5">Upload a screenshot from your health tracker — analysis runs automatically.</p>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Data Capture</CardTitle>
-            <CardDescription>Upload a screenshot from your health tracker or wearable app.</CardDescription>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Data Capture</CardTitle>
+            <CardDescription>Select an image from your device or take a photo.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-
-            {/* Mode toggle */}
-            <div className="flex rounded-lg border border-input overflow-hidden w-fit">
-              <button
-                type="button"
-                onClick={() => { setMode("upload"); setFile(null); }}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  mode === "upload" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                <UploadCloud className="w-4 h-4" /> Upload image
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMode("camera"); setFile(null); }}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  mode === "camera" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                <Camera className="w-4 h-4" /> Take photo
-              </button>
-            </div>
+          <CardContent className="space-y-5">
 
             {/* Hidden file inputs */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept="image/*"
-              onChange={handleFileChange}
-            />
-            <input
-              type="file"
-              ref={cameraInputRef}
-              className="hidden"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileChange}
-            />
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+            <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileChange} />
 
-            {mode === "upload" ? (
+            {/* Mode toggle — only show when no file selected */}
+            {!file && (
+              <div className="flex rounded-lg border border-input overflow-hidden w-fit">
+                <button
+                  type="button"
+                  onClick={() => switchMode("upload")}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                    mode === "upload" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  <UploadCloud className="w-4 h-4" /> Upload image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode("camera")}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                    mode === "camera" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  <Camera className="w-4 h-4" /> Take photo
+                </button>
+              </div>
+            )}
+
+            {/* File selection zone or image preview */}
+            {file && previewUrl ? (
+              /* Preview */
+              <div className="rounded-lg border border-border overflow-hidden">
+                <div className="bg-muted/40 px-3 py-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground truncate mr-2">
+                    <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{file.name}</span>
+                  </span>
+                  <span className="shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
+                </div>
+                <div className="bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmMGYwZjAiLz48cmVjdCB4PSI0IiB5PSI0IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZjBmMGYwIi8+PC9zdmc+')] flex justify-center p-3">
+                  <img
+                    src={previewUrl}
+                    alt="Selected file preview"
+                    className="max-h-72 w-auto rounded shadow-sm border border-border/40 object-contain"
+                  />
+                </div>
+                <div className="px-3 py-2 border-t border-border bg-muted/20 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => mode === "camera" ? cameraInputRef.current?.click() : fileInputRef.current?.click()}
+                    className="gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Change
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={clearFile} className="gap-1.5 text-destructive hover:text-destructive">
+                    <X className="w-3.5 h-3.5" /> Remove
+                  </Button>
+                </div>
+              </div>
+            ) : mode === "upload" ? (
+              /* Upload drop zone */
               <div
-                className={`border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center transition-colors cursor-pointer ${
-                  file ? "border-primary/50 bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
-                }`}
+                className="border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center transition-colors cursor-pointer border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
               >
-                {file ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="p-3 bg-primary/10 rounded-full text-primary">
-                      <File className="w-8 h-8" />
-                    </div>
-                    <div className="text-center">
-                      <p className="font-medium text-foreground">{file.name}</p>
-                      <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                    >
-                      <X className="w-4 h-4 mr-2" /> Remove
-                    </Button>
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <div className="p-4 bg-muted rounded-full text-muted-foreground">
+                    <UploadCloud className="w-8 h-8" />
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3 text-center">
-                    <div className="p-4 bg-muted rounded-full text-muted-foreground">
-                      <UploadCloud className="w-8 h-8" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">Click to upload or drag and drop</p>
-                      <p className="text-sm text-muted-foreground mt-1">PNG, JPG or JPEG (max 10MB)</p>
-                    </div>
+                  <div>
+                    <p className="font-medium text-foreground">Click to upload or drag and drop</p>
+                    <p className="text-sm text-muted-foreground mt-1">PNG, JPG or JPEG (max 10 MB)</p>
                   </div>
-                )}
+                </div>
               </div>
             ) : (
+              /* Camera zone */
               <div className="border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center gap-4">
-                {file ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="p-3 bg-primary/10 rounded-full text-primary">
-                      <File className="w-8 h-8" />
-                    </div>
-                    <div className="text-center">
-                      <p className="font-medium text-foreground">{file.name}</p>
-                      <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setFile(null)}
-                    >
-                      <X className="w-4 h-4 mr-2" /> Retake
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="p-4 bg-muted rounded-full text-muted-foreground">
-                      <Camera className="w-8 h-8" />
-                    </div>
-                    <div className="text-center">
-                      <p className="font-medium text-foreground">Capture a photo</p>
-                      <p className="text-sm text-muted-foreground mt-1">Opens your device camera</p>
-                    </div>
-                    <Button variant="outline" onClick={() => cameraInputRef.current?.click()}>
-                      <Camera className="w-4 h-4 mr-2" /> Open camera
-                    </Button>
-                  </>
-                )}
+                <div className="p-4 bg-muted rounded-full text-muted-foreground">
+                  <Camera className="w-8 h-8" />
+                </div>
+                <div className="text-center">
+                  <p className="font-medium text-foreground">Capture a photo</p>
+                  <p className="text-sm text-muted-foreground mt-1">Opens your device camera</p>
+                </div>
+                <Button variant="outline" onClick={() => cameraInputRef.current?.click()}>
+                  <Camera className="w-4 h-4 mr-2" /> Open camera
+                </Button>
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Source App <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <label className="text-sm font-medium">
+                Source App <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
               <input
                 type="text"
                 placeholder="e.g. Apple Health, MyFitnessPal, Strava"
@@ -220,7 +225,9 @@ export default function UploadPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Notes <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <label className="text-sm font-medium">
+                Notes <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
               <Textarea
                 placeholder="Add any context about this screenshot..."
                 value={notes}
@@ -230,16 +237,15 @@ export default function UploadPage() {
               />
             </div>
 
-            <div className="flex justify-end">
-              <Button
-                onClick={handleUpload}
-                disabled={!file || isUploading}
-                size="lg"
-              >
-                {isUploading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {isUploading ? "Uploading…" : "Upload & Analyze"}
-              </Button>
-            </div>
+            <Button
+              onClick={handleUpload}
+              disabled={!file || isUploading}
+              size="lg"
+              className="w-full"
+            >
+              {isUploading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isUploading ? "Uploading…" : "Upload & Analyze"}
+            </Button>
 
           </CardContent>
         </Card>
