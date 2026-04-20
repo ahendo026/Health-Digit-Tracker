@@ -166,23 +166,25 @@ export default function DetailPage() {
 
         {isAnalyzed && !hasReview && (
           <Card className="mb-6 border-amber-200 bg-amber-50/60">
-            <CardContent className="p-4 flex items-center gap-3 flex-wrap">
-              <ClipboardCheck className="w-5 h-5 text-amber-700" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-amber-900">Ready for review</p>
-                <p className="text-xs text-amber-800/80">Confirm the classification and extracted values to lock this entry in.</p>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2 w-full">
+                <ClipboardCheck className="w-5 h-5 text-amber-700 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-900">Ready for review</p>
+                  <p className="text-xs text-amber-800/80">Confirm the classification and extracted values to lock this entry in.</p>
+                </div>
               </div>
-              <Link href="/review">
-                <Button size="sm" variant="outline" className="border-amber-300 bg-white">
-                  Review now
-                </Button>
-              </Link>
-              {isAnalyzed && (
-                <Button size="sm" variant="ghost" onClick={handleRetry} disabled={analyzeUpload.isPending}>
+              <div className="flex gap-2">
+                <Link href="/review" className="flex-1">
+                  <Button size="sm" variant="outline" className="w-full border-amber-300 bg-white">
+                    Review now
+                  </Button>
+                </Link>
+                <Button size="sm" variant="ghost" className="flex-1" onClick={handleRetry} disabled={analyzeUpload.isPending}>
                   {analyzeUpload.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RotateCw className="w-4 h-4 mr-1" />}
                   Re-analyze
                 </Button>
-              )}
+              </div>
             </CardContent>
           </Card>
         )}
