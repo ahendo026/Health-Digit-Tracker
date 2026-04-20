@@ -193,26 +193,7 @@ export default function DetailPage() {
           {/* Left Column: Image and Meta */}
           <div className="space-y-6 lg:col-span-1">
             <Card className="overflow-hidden border-border bg-card">
-              <div className="bg-muted p-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
-                <span className="font-mono">{upload.mimeType}</span>
-                <span>{(upload.fileSize / 1024).toFixed(1)} KB</span>
-              </div>
-              <div className="p-4 bg-muted/30 flex justify-center bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZjBmMGYwIj48L3JlY3Q+CjxyZWN0IHg9IjQiIHk9IjQiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmMGYwZjAiPjwvcmVjdD4KPC9zdmc+')]">
-                <img
-                  src={resolveUploadImageUrl(upload.filePath)}
-                  alt={upload.originalFilename}
-                  className="max-w-full h-auto rounded shadow-sm border border-border/50 max-h-[500px] object-contain"
-                />
-              </div>
-              <div className="border-t border-border divide-y divide-border text-xs">
-                <div className="flex items-center justify-between px-3 py-2">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <Clock className="w-3 h-3" /> Uploaded
-                  </span>
-                  <span className="font-medium text-foreground">
-                    {format(new Date(upload.createdAt), "MMM d, yyyy 'at' h:mm a")}
-                  </span>
-                </div>
+              <div className="border-b border-border divide-y divide-border text-xs">
                 {(() => {
                   const captureTime =
                     events[0]?.eventTime ??
@@ -229,6 +210,25 @@ export default function DetailPage() {
                     </div>
                   ) : null;
                 })()}
+                <div className="flex items-center justify-between px-3 py-2">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" /> Uploaded
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {format(new Date(upload.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                  </span>
+                </div>
+              </div>
+              <div className="bg-muted p-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
+                <span className="font-mono">{upload.mimeType}</span>
+                <span>{(upload.fileSize / 1024).toFixed(1)} KB</span>
+              </div>
+              <div className="p-4 bg-muted/30 flex justify-center bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZjBmMGYwIj48L3JlY3Q+CjxyZWN0IHg9IjQiIHk9IjQiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmMGYwZjAiPjwvcmVjdD4KPC9zdmc+')]">
+                <img
+                  src={resolveUploadImageUrl(upload.filePath)}
+                  alt={upload.originalFilename}
+                  className="max-w-full h-auto rounded shadow-sm border border-border/50 max-h-[500px] object-contain"
+                />
               </div>
             </Card>
 
