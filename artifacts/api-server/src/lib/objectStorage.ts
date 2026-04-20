@@ -76,7 +76,7 @@ export class ObjectStorageService {
           "tool and set PRIVATE_OBJECT_DIR env var."
       );
     }
-    return dir;
+    return dir.startsWith("/") ? dir : `/${dir}`;
   }
 
   async searchPublicObject(filePath: string): Promise<File | null> {
