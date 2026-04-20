@@ -55,7 +55,8 @@ export interface AnalysisResult {
   };
 }
 
-const SYSTEM_PROMPT = `You are an expert health data extraction assistant. You will be shown a screenshot from a health, fitness, food, or wearable app. Your job is to:
+function buildSystemPrompt(nowIso: string, todayDate: string): string {
+  return `You are an expert health data extraction assistant. You will be shown a screenshot from a health, fitness, food, or wearable app. Your job is to:
 
 1. Classify the screenshot into exactly one of these categories:
    - "glucose_reading" — blood glucose / continuous glucose monitor readings
@@ -73,7 +74,7 @@ const SYSTEM_PROMPT = `You are an expert health data extraction assistant. You w
   "classification": "<one of the 6 categories above>",
   "confidence": <number between 0 and 1 — your confidence in the classification>,
   "summary": "<one or two sentence human-readable summary of what's in the image>",
-  "capturedAt": "<ISO datetime string of the date/time visible in the screenshot itself — e.g. a timestamp shown by the app, a clock, or a recording date — null if not visible>",
+  "capturedAt": "<ISO datetime string representing when the screenshot was taken — see capturedAt rules below>",
   "data": {
     "events": [ { "eventType": string, "eventTime"?: ISO string, "value"?: number, "unit"?: string, "systolic"?: number, "diastolic"?: number, "notes"?: string } ],
     "meals":  [ { "name"?: string, "mealTime"?: ISO string, "calories"?: number, "protein"?: number, "carbs"?: number, "fat"?: number, "fiber"?: number, "mealType"?: string, "foods"?: string, "notes"?: string } ],
@@ -81,15 +82,24 @@ const SYSTEM_PROMPT = `You are an expert health data extraction assistant. You w
   }
 }
 
+Context for this request:
+- Current date/time (server clock): ${nowIso}
+- Today's date: ${todayDate}
+
 Rules:
 - Only include the array(s) relevant to the classification. For glucose/BP/weight use "events". For meals use "meals". For workouts use "workouts".
 - For blood pressure events: set "eventType" to "blood_pressure_reading" and populate "systolic" and "diastolic" (do not set "value").
 - For glucose: set "eventType" to "glucose_reading", "value" to the reading, "unit" to mg/dL or mmol/L.
 - For weight: set "eventType" to "weight_reading", "value" to the weight, "unit" to kg or lb.
-- For "capturedAt": look for any date/time displayed in the screenshot (app header, recording timestamp, activity date, clock). Use the most specific one visible. Output as ISO 8601. Omit the field entirely if no date/time is visible.
+- For "capturedAt" (the moment the screenshot was taken) use this priority order:
+  1. **Phone status bar clock** — the time at the very top of the screenshot, outside any app UI, usually in the top-left corner next to signal/battery indicators. This is the most reliable timestamp. Combine it with today's date (${todayDate}) unless the image also shows a different calendar date.
+  2. **Explicit recording date/time the app displays** for the thing being shown (e.g. "Sunday, Apr 19, 2026 02:42 PM" on a workout summary page).
+  3. Do **NOT** use log-entry timestamps, historical data points, or in-app "Today" labels.
+  If only a time is visible (e.g. the status bar shows "11:32"), combine that time with today's date (${todayDate}) and emit the result as a full ISO datetime. Omit "capturedAt" entirely only if no clock or timestamp of any kind is visible.
 - If you cannot read the image or it is not health-related, classify as "unknown" with confidence < 0.5 and an empty data object: { }.
 - Confidence should reflect how certain you are about the classification given what's actually visible. Don't inflate.
 - Output JSON only — no commentary, no code fences.`;
+}
 
 const VALID_CLASSIFICATIONS = new Set<Classification>([
   "glucose_reading",
@@ -199,10 +209,12 @@ export async function analyzeScreenshot(filePath: string): Promise<AnalysisResul
   }
 
   try {
+    const now = new Date();
+    const systemPrompt = buildSystemPrompt(now.toISOString(), now.toISOString().slice(0, 10));
     const message = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 8192,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [
         {
           role: "user",

@@ -364,7 +364,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
       .values({
         uploadId: params.data.id,
         modelName: "health-digit-placeholder-v1",
-        promptVersion: "1.0.0",
+        promptVersion: "1.1.0",
         rawOutput: analysisResult as unknown as Record<string, unknown>,
         classification: analysisResult.classification,
         confidence: analysisResult.confidence,
