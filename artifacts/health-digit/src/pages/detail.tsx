@@ -231,7 +231,7 @@ export default function DetailPage() {
                           {format(new Date(upload.capturedAt), "MMM d, yyyy 'at' h:mm a")}
                         </span>
                         <button
-                          onClick={() => { setEditingCapturedAt(true); setCapturedAtInput(""); }}
+                          onClick={() => { setEditingCapturedAt(true); setCapturedAtInput(format(new Date(upload.capturedAt!), "yyyy-MM-dd'T'HH:mm")); }}
                           className="text-muted-foreground hover:text-foreground"
                         >
                           <Pencil className="w-3 h-3" />
@@ -239,7 +239,7 @@ export default function DetailPage() {
                       </span>
                     ) : !editingCapturedAt ? (
                       <button
-                        onClick={() => setEditingCapturedAt(true)}
+                        onClick={() => { setEditingCapturedAt(true); setCapturedAtInput(format(new Date(), "yyyy-MM-dd'T'HH:mm")); }}
                         className="text-muted-foreground hover:text-foreground flex items-center gap-1"
                       >
                         <Pencil className="w-3 h-3" /> Enter date
