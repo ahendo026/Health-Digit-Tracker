@@ -87,6 +87,21 @@ paths:
                 $ref: "#/components/schemas/UploadDetail"
         "404":
           description: Not found
+    delete:
+      operationId: deleteUpload
+      tags: [uploads]
+      summary: Delete an upload and all its child records
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
 
   /uploads/{id}/captured-at:
     patch:

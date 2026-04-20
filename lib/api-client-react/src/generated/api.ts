@@ -297,6 +297,90 @@ export function useGetUpload<
 }
 
 /**
+ * @summary Delete an upload and all its child records
+ */
+export const getDeleteUploadUrl = (id: number) => {
+  return `/api/uploads/${id}`;
+};
+
+export const deleteUpload = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteUploadUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteUploadMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteUpload>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteUpload>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteUpload"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteUpload>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteUpload(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteUploadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteUpload>>
+>;
+
+export type DeleteUploadMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete an upload and all its child records
+ */
+export const useDeleteUpload = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteUpload>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteUpload>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteUploadMutationOptions(options));
+};
+
+/**
  * @summary Manually set the screen capture date/time for an upload
  */
 export const getSetUploadCapturedAtUrl = (id: number) => {

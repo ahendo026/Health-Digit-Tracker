@@ -248,6 +248,47 @@ router.get("/uploads/:id", async (req, res): Promise<void> => {
   });
 });
 
+router.delete("/uploads/:id", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const params = GetUploadParams.safeParse({ id: raw });
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [uploadRecord] = await db
+    .select()
+    .from(uploadsTable)
+    .where(eq(uploadsTable.id, params.data.id));
+
+  if (!uploadRecord) {
+    res.status(404).json({ error: "Upload not found" });
+    return;
+  }
+
+  await db.delete(reviewsTable).where(eq(reviewsTable.uploadId, params.data.id));
+  await db.delete(eventsTable).where(eq(eventsTable.uploadId, params.data.id));
+  await db.delete(workoutsTable).where(eq(workoutsTable.uploadId, params.data.id));
+  await db.delete(mealsTable).where(eq(mealsTable.uploadId, params.data.id));
+  await db.delete(llmRunsTable).where(eq(llmRunsTable.uploadId, params.data.id));
+  await db.delete(uploadsTable).where(eq(uploadsTable.id, params.data.id));
+
+  // Best-effort: delete the stored file
+  try {
+    if (isLocalUri(uploadRecord.filePath)) {
+      const { resolveLocalPath } = await import("../lib/localStorage");
+      await fs.unlink(resolveLocalPath(uploadRecord.filePath)).catch(() => {});
+    } else if (uploadRecord.filePath.startsWith("/objects/")) {
+      const file = await storageService.getObjectEntityFile(uploadRecord.filePath).catch(() => null);
+      if (file) await file.delete({ ignoreNotFound: true }).catch(() => {});
+    }
+  } catch (err) {
+    req.log.warn({ err, filePath: uploadRecord.filePath }, "Failed to delete stored file (record already removed)");
+  }
+
+  res.status(204).end();
+});
+
 router.patch("/uploads/:id/captured-at", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = GetUploadParams.safeParse({ id: raw });

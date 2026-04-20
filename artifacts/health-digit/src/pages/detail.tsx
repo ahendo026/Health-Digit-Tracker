@@ -1,14 +1,26 @@
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { useState } from "react";
 import { resolveUploadImageUrl, apiUrl } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import {
   useGetUpload,
   useAnalyzeUpload,
+  useDeleteUpload,
   getGetUploadQueryKey,
   getGetUploadSummaryQueryKey,
   getListUploadsQueryKey,
 } from "@workspace/api-client-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { ClassificationBadge, StatusBadge } from "@/components/badges";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +37,7 @@ import {
   Loader2,
   ClipboardCheck,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -64,6 +77,8 @@ export default function DetailPage() {
   });
 
   const analyzeUpload = useAnalyzeUpload();
+  const deleteUpload = useDeleteUpload();
+  const [, setLocation] = useLocation();
   const [editingCapturedAt, setEditingCapturedAt] = useState(false);
   const [capturedAtInput, setCapturedAtInput] = useState("");
   const [savingCapturedAt, setSavingCapturedAt] = useState(false);
@@ -98,6 +113,18 @@ export default function DetailPage() {
       toast({ title: "Re-analysis started" });
     } catch {
       toast({ title: "Could not start analysis", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteUpload.mutateAsync({ id });
+      queryClient.invalidateQueries({ queryKey: getGetUploadSummaryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListUploadsQueryKey() });
+      toast({ title: "Upload deleted" });
+      setLocation("/history");
+    } catch {
+      toast({ title: "Could not delete upload", variant: "destructive" });
     }
   };
 
@@ -158,6 +185,37 @@ export default function DetailPage() {
                 <CheckCircle2 className="w-3 h-3" /> Reviewed
               </span>
             )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this upload?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently removes the image, analysis, extracted data, and any reviews.
+                    This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={deleteUpload.isPending}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deleteUpload.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
 

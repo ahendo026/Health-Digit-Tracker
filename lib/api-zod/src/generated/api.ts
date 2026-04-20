@@ -157,6 +157,13 @@ export const GetUploadResponse = zod.object({
 });
 
 /**
+ * @summary Delete an upload and all its child records
+ */
+export const DeleteUploadParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Manually set the screen capture date/time for an upload
  */
 export const SetUploadCapturedAtParams = zod.object({
