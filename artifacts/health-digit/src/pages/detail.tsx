@@ -6,6 +6,7 @@ import {
   useGetUpload,
   useAnalyzeUpload,
   useDeleteUpload,
+  useListUploads,
   getGetUploadQueryKey,
   getGetUploadSummaryQueryKey,
   getListUploadsQueryKey,
@@ -38,6 +39,8 @@ import {
   ClipboardCheck,
   Pencil,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -79,6 +82,11 @@ export default function DetailPage() {
   const analyzeUpload = useAnalyzeUpload();
   const deleteUpload = useDeleteUpload();
   const [, setLocation] = useLocation();
+  const { data: uploadList } = useListUploads({ limit: 500 });
+  const ids = uploadList?.uploads.map(u => u.id) ?? [];
+  const currentIdx = ids.indexOf(id);
+  const newerId = currentIdx > 0 ? ids[currentIdx - 1] : null;
+  const olderId = currentIdx >= 0 && currentIdx < ids.length - 1 ? ids[currentIdx + 1] : null;
   const [editingCapturedAt, setEditingCapturedAt] = useState(false);
   const [capturedAtInput, setCapturedAtInput] = useState("");
   const [savingCapturedAt, setSavingCapturedAt] = useState(false);
@@ -167,6 +175,33 @@ export default function DetailPage() {
   return (
     <Layout>
       <div className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-6xl mx-auto">
+        {(olderId != null || newerId != null) && (
+          <div className="flex items-center justify-between mb-3 text-sm">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={newerId == null}
+              onClick={() => newerId != null && setLocation(`/uploads/${newerId}`)}
+              className="gap-1"
+            >
+              <ChevronLeft className="w-4 h-4" /> Newer
+            </Button>
+            {currentIdx >= 0 && ids.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {currentIdx + 1} of {ids.length}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={olderId == null}
+              onClick={() => olderId != null && setLocation(`/uploads/${olderId}`)}
+              className="gap-1"
+            >
+              Older <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground capitalize truncate">
