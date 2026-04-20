@@ -351,6 +351,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
         classification: analysisResult.classification,
         confidence: analysisResult.confidence,
         summary: analysisResult.summary,
+        capturedAt: analysisResult.capturedAt ? new Date(analysisResult.capturedAt) : null,
       })
       .where(eq(uploadsTable.id, params.data.id));
 

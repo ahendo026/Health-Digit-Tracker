@@ -17,6 +17,7 @@ export interface AnalysisResult {
   classification: Classification;
   confidence: number;
   summary: string;
+  capturedAt?: string;
   data: {
     events?: Array<{
       eventType: string;
@@ -72,6 +73,7 @@ const SYSTEM_PROMPT = `You are an expert health data extraction assistant. You w
   "classification": "<one of the 6 categories above>",
   "confidence": <number between 0 and 1 — your confidence in the classification>,
   "summary": "<one or two sentence human-readable summary of what's in the image>",
+  "capturedAt": "<ISO datetime string of the date/time visible in the screenshot itself — e.g. a timestamp shown by the app, a clock, or a recording date — null if not visible>",
   "data": {
     "events": [ { "eventType": string, "eventTime"?: ISO string, "value"?: number, "unit"?: string, "systolic"?: number, "diastolic"?: number, "notes"?: string } ],
     "meals":  [ { "name"?: string, "mealTime"?: ISO string, "calories"?: number, "protein"?: number, "carbs"?: number, "fat"?: number, "fiber"?: number, "mealType"?: string, "foods"?: string, "notes"?: string } ],
@@ -84,6 +86,7 @@ Rules:
 - For blood pressure events: set "eventType" to "blood_pressure_reading" and populate "systolic" and "diastolic" (do not set "value").
 - For glucose: set "eventType" to "glucose_reading", "value" to the reading, "unit" to mg/dL or mmol/L.
 - For weight: set "eventType" to "weight_reading", "value" to the weight, "unit" to kg or lb.
+- For "capturedAt": look for any date/time displayed in the screenshot (app header, recording timestamp, activity date, clock). Use the most specific one visible. Output as ISO 8601. Omit the field entirely if no date/time is visible.
 - If you cannot read the image or it is not health-related, classify as "unknown" with confidence < 0.5 and an empty data object: { }.
 - Confidence should reflect how certain you are about the classification given what's actually visible. Don't inflate.
 - Output JSON only — no commentary, no code fences.`;
@@ -172,9 +175,10 @@ function normalizeResult(raw: unknown): AnalysisResult {
   const confidenceRaw = typeof r.confidence === "number" ? r.confidence : 0;
   const confidence = Math.max(0, Math.min(1, confidenceRaw));
   const summary = typeof r.summary === "string" ? r.summary : "";
+  const capturedAt = typeof r.capturedAt === "string" && r.capturedAt ? r.capturedAt : undefined;
   const data = (r.data && typeof r.data === "object" ? r.data : {}) as AnalysisResult["data"];
 
-  return { classification, confidence, summary, data };
+  return { classification, confidence, summary, capturedAt, data };
 }
 
 export async function analyzeScreenshot(filePath: string): Promise<AnalysisResult> {

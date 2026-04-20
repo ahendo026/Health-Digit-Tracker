@@ -194,22 +194,16 @@ export default function DetailPage() {
           <div className="space-y-6 lg:col-span-1">
             <Card className="overflow-hidden border-border bg-card">
               <div className="border-b border-border divide-y divide-border text-xs">
-                {(() => {
-                  const captureTime =
-                    events[0]?.eventTime ??
-                    workouts[0]?.workoutTime ??
-                    meals[0]?.mealTime ?? null;
-                  return captureTime ? (
-                    <div className="flex items-center justify-between px-3 py-2">
-                      <span className="text-muted-foreground flex items-center gap-1.5">
-                        <Clock className="w-3 h-3" /> Screen Capture
-                      </span>
-                      <span className="font-medium text-foreground">
-                        {format(new Date(captureTime), "MMM d, yyyy 'at' h:mm a")}
-                      </span>
-                    </div>
-                  ) : null;
-                })()}
+                {upload.capturedAt && (
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Clock className="w-3 h-3" /> Screen Capture
+                    </span>
+                    <span className="font-medium text-foreground">
+                      {format(new Date(upload.capturedAt), "MMM d, yyyy 'at' h:mm a")}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between px-3 py-2">
                   <span className="text-muted-foreground flex items-center gap-1.5">
                     <Clock className="w-3 h-3" /> Uploaded

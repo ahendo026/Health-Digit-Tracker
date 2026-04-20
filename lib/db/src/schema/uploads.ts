@@ -22,6 +22,7 @@ export const uploadsTable = pgTable("uploads", {
   classification: text("classification"),
   confidence: real("confidence"),
   summary: text("summary"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }),
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
