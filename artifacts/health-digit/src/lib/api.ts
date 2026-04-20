@@ -19,5 +19,5 @@ export function resolveUploadImageUrl(filePath: string): string {
     const filename = filePath.slice(LOCAL_UPLOADS_URI_PREFIX.length);
     return `${API_BASE}/api/storage/local_uploads/${filename}`;
   }
-  return `/api/storage${filePath}`;
+  return `${API_BASE}/api/storage${filePath}`;
 }
