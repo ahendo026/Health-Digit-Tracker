@@ -18,7 +18,8 @@ services:
       - key: PRIVATE_OBJECT_DIR
         sync: false
 
-  - type: static
+  - type: web
+    runtime: static
     name: healthdigits-frontend
     buildCommand: pnpm install && BASE_PATH=/ pnpm --filter @workspace/health-digit run build
     staticPublishPath: artifacts/health-digit/dist/public
