@@ -21,6 +21,7 @@
 12. [Local Development Setup](#12-local-development-setup)
 13. [Production Considerations](#13-production-considerations)
 14. [Future Extensions](#14-future-extensions)
+15. [Airtable Sync](#15-airtable-sync)
 
 ---
 
@@ -1291,4 +1292,79 @@ The `users` table and `user_id` FK on `uploads` are already in the schema. Addin
 
 ### Airtable sync
 
-`airtable_sync_log` is already scaffolded. A sync job could push approved, reviewed records to an Airtable base for manual analysis, sharing, or reporting without requiring direct DB access.
+Implemented in `artifacts/api-server/src/lib/airtable.ts` + `airtable-mappings.ts`. See the new **§15 Airtable Sync** section below.
+
+---
+
+## 15. Airtable Sync
+
+Airtable is a **review / evaluation layer**, not the system of record. The PostgreSQL database is always authoritative; Airtable receives a denormalized copy of selected tables for human inspection and reporting.
+
+### Guarantees
+
+- **Non-blocking** — no HTTP request path ever awaits an Airtable call. Sync is triggered via `setImmediate(...)` from route handlers.
+- **Optional** — if `AIRTABLE_API_KEY` or `AIRTABLE_BASE_ID` is unset, every sync call is a no-op. The main app runs exactly as before.
+- **Auditable** — every attempt (success, failure, or abandoned) is recorded in `airtable_sync_log`.
+- **Idempotent** — the sync engine looks up the last known `airtable_record_id` for each DB row and issues `PATCH` when present, `POST` when not, so repeated syncs don't create duplicates.
+
+### What gets synced
+
+| Entity | Trigger | Airtable table env var |
+|---|---|---|
+| `uploads` | On upload creation; on analysis completion; on review submission | `AIRTABLE_UPLOADS_TABLE` |
+| `llm_runs` | On analysis completion | `AIRTABLE_LLM_RUNS_TABLE` |
+| `meals` | On analysis completion (per extracted meal) | `AIRTABLE_MEALS_TABLE` |
+| `workouts` | On analysis completion (per extracted workout) | `AIRTABLE_WORKOUTS_TABLE` |
+| `reviews` | On review submission | `AIRTABLE_REVIEWS_TABLE` |
+
+If a specific table env var is unset, sync for that entity is skipped while other entities continue to sync.
+
+### Field mapping
+
+All DB → Airtable field mappings live in `artifacts/api-server/src/lib/airtable-mappings.ts`. Each entity entry has three concerns:
+
+- **`tableEnvVar`** — which env var holds the Airtable table name/id
+- **`loader(id)`** — how to fetch the DB row
+- **`buildFields(row)`** — transforms the row into the Airtable `fields` object. **Edit this function to add or remove synced fields.**
+
+Airtable field names are case-sensitive and must exist on the Airtable table. The sync engine uses `typecast: true` so string-like values (dates, numbers) are coerced by Airtable automatically.
+
+### Retries
+
+Failed syncs are logged with `status='failed'`, a `retry_count`, and a `next_retry_at` timestamp using exponential backoff:
+
+| Attempt | Delay before next retry |
+|---|---|
+| 1 | 1 minute |
+| 2 | 5 minutes |
+| 3 | 15 minutes |
+| 4 | 60 minutes |
+| 5 | 4 hours |
+
+After 5 failures the row is marked `abandoned` and no longer retried automatically.
+
+A retry worker (`startRetryWorker()` in `airtable.ts`, started from `index.ts`) wakes up every 5 minutes to scan `airtable_sync_log` for due rows and re-attempts them.
+
+### Required environment variables
+
+| Variable | Description |
+|---|---|
+| `AIRTABLE_API_KEY` | Personal Access Token |
+| `AIRTABLE_BASE_ID` | Base ID, e.g. `appXXXXXXXXXXXXXX` |
+| `AIRTABLE_UPLOADS_TABLE` | Table name or ID for uploads |
+| `AIRTABLE_LLM_RUNS_TABLE` | Table name or ID for LLM runs |
+| `AIRTABLE_REVIEWS_TABLE` | Table name or ID for reviews |
+| `AIRTABLE_MEALS_TABLE` | Table name or ID for meals |
+| `AIRTABLE_WORKOUTS_TABLE` | Table name or ID for workouts |
+
+### Adding a new synced entity
+
+1. Add an entry to `MAPPINGS` in `airtable-mappings.ts` with `tableEnvVar`, `loader`, `buildFields`
+2. Add a new env var for the Airtable table name/id
+3. Call `enqueueAirtableSync("<entity>", dbRowId)` from the appropriate route handler(s)
+
+### Debugging
+
+- Query `airtable_sync_log` to see every attempt for a given DB row: `SELECT * FROM airtable_sync_log WHERE table_name = 'uploads' AND record_id = '42' ORDER BY synced_at DESC;`
+- The `payload` column stores the exact JSON body sent to Airtable — useful for diagnosing field name mismatches
+- Logs tag every outcome: `"Airtable sync ok"` (info), `"Airtable sync failed"` (warn), `"Airtable retry worker tick failed"` (error)

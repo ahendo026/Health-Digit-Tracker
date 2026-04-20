@@ -143,8 +143,12 @@ export const airtableSyncLogTable = pgTable("airtable_sync_log", {
   id: serial("id").primaryKey(),
   tableName: text("table_name").notNull(),
   recordId: text("record_id"),
+  airtableRecordId: text("airtable_record_id"),
   status: text("status").notNull(),
   errorMessage: text("error_message"),
+  retryCount: integer("retry_count").notNull().default(0),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  payload: jsonb("payload"),
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

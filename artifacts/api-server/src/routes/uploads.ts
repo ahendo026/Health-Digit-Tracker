@@ -24,6 +24,7 @@ import {
 } from "@workspace/api-zod";
 import { analyzeScreenshot } from "../lib/analysis";
 import { logger } from "../lib/logger";
+import { enqueue as enqueueAirtableSync } from "../lib/airtable";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -187,6 +188,7 @@ router.post("/uploads", upload.single("file"), async (req, res): Promise<void> =
       })
       .returning();
 
+    enqueueAirtableSync("uploads", newUpload.id);
     res.status(201).json(newUpload);
   } catch (err) {
     req.log.error({ err }, "Error creating upload");
@@ -388,9 +390,10 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
       }
     }
 
+    const insertedMealIds: number[] = [];
     if (analysisResult.data.meals) {
       for (const meal of analysisResult.data.meals) {
-        await db.insert(mealsTable).values({
+        const [inserted] = await db.insert(mealsTable).values({
           uploadId: params.data.id,
           name: meal.name ?? null,
           mealTime: safeDate(meal.mealTime),
@@ -402,15 +405,17 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
           mealType: meal.mealType ?? null,
           foods: meal.foods ?? null,
           notes: meal.notes ?? null,
-        });
+        }).returning();
+        insertedMealIds.push(inserted.id);
       }
     }
 
+    const insertedWorkoutIds: number[] = [];
     if (analysisResult.data.workouts) {
       for (const workout of analysisResult.data.workouts) {
         const safeInt = (v: number | undefined | null): number | null =>
           v != null ? Math.round(v) : null;
-        await db.insert(workoutsTable).values({
+        const [inserted] = await db.insert(workoutsTable).values({
           uploadId: params.data.id,
           workoutType: workout.workoutType ?? null,
           workoutTime: safeDate(workout.workoutTime),
@@ -422,7 +427,8 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
           pace: workout.pace ?? null,
           heartRateZones: workout.heartRateZones ?? null,
           notes: workout.notes ?? null,
-        });
+        }).returning();
+        insertedWorkoutIds.push(inserted.id);
       }
     }
 
@@ -436,6 +442,12 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
         capturedAt: analysisResult.capturedAt ? new Date(analysisResult.capturedAt) : null,
       })
       .where(eq(uploadsTable.id, params.data.id));
+
+    // Fire-and-forget Airtable syncs (no-op if not configured)
+    enqueueAirtableSync("uploads", params.data.id);
+    enqueueAirtableSync("llm_runs", llmRun.id);
+    for (const id of insertedMealIds) enqueueAirtableSync("meals", id);
+    for (const id of insertedWorkoutIds) enqueueAirtableSync("workouts", id);
 
     res.json(llmRun);
   } catch (err) {
@@ -496,6 +508,9 @@ router.post("/reviews", async (req, res): Promise<void> => {
       .set({ classification, status: "analyzed" })
       .where(eq(uploadsTable.id, uploadId));
   }
+
+  enqueueAirtableSync("reviews", review.id);
+  enqueueAirtableSync("uploads", uploadId);
 
   const intToBool = (v: number | null): boolean | null =>
     v === 1 ? true : v === 0 ? false : null;

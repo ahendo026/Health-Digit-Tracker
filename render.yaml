@@ -17,6 +17,20 @@ services:
         sync: false
       - key: PRIVATE_OBJECT_DIR
         sync: false
+      - key: AIRTABLE_API_KEY
+        sync: false
+      - key: AIRTABLE_BASE_ID
+        sync: false
+      - key: AIRTABLE_UPLOADS_TABLE
+        sync: false
+      - key: AIRTABLE_LLM_RUNS_TABLE
+        sync: false
+      - key: AIRTABLE_REVIEWS_TABLE
+        sync: false
+      - key: AIRTABLE_MEALS_TABLE
+        sync: false
+      - key: AIRTABLE_WORKOUTS_TABLE
+        sync: false
 
   - type: web
     runtime: static
