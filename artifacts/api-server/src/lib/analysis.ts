@@ -107,12 +107,12 @@ function unknownResult(summary: string): AnalysisResult {
 }
 
 function getClient(): Anthropic | null {
-  const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
   const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-  if (!baseURL || !apiKey) {
+  if (!apiKey) {
     return null;
   }
-  return new Anthropic({ baseURL, apiKey });
+  const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+  return new Anthropic({ apiKey, ...(baseURL ? { baseURL } : {}) });
 }
 
 async function fetchImageAsBase64(

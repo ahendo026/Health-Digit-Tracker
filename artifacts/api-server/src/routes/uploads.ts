@@ -327,12 +327,14 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
 
     if (analysisResult.data.workouts) {
       for (const workout of analysisResult.data.workouts) {
+        const safeInt = (v: number | undefined | null): number | null =>
+          v != null ? Math.round(v) : null;
         await db.insert(workoutsTable).values({
           workoutType: workout.workoutType ?? null,
           workoutTime: safeDate(workout.workoutTime),
-          duration: workout.duration ?? null,
-          averageHeartRate: workout.averageHeartRate ?? null,
-          maxHeartRate: workout.maxHeartRate ?? null,
+          duration: safeInt(workout.duration),
+          averageHeartRate: safeInt(workout.averageHeartRate),
+          maxHeartRate: safeInt(workout.maxHeartRate),
           calories: workout.calories ?? null,
           distance: workout.distance ?? null,
           pace: workout.pace ?? null,
