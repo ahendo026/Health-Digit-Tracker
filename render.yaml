@@ -17,6 +17,8 @@ services:
         sync: false
       - key: PRIVATE_OBJECT_DIR
         sync: false
+      - key: AIRTABLE_SYNC_ENABLED
+        value: "false"
       - key: AIRTABLE_API_KEY
         sync: false
       - key: AIRTABLE_BASE_ID

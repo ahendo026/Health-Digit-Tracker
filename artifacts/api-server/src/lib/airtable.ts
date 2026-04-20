@@ -25,6 +25,9 @@ const MAX_RETRIES = 5;
 const RETRY_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes between worker ticks
 
 function isConfigured(): boolean {
+  // Master kill-switch: sync is off unless AIRTABLE_SYNC_ENABLED=true,
+  // regardless of whether the API key and base id are set.
+  if (process.env.AIRTABLE_SYNC_ENABLED !== "true") return false;
   return Boolean(process.env.AIRTABLE_API_KEY && process.env.AIRTABLE_BASE_ID);
 }
 

@@ -1302,8 +1302,9 @@ Airtable is a **review / evaluation layer**, not the system of record. The Postg
 
 ### Guarantees
 
+- **Off by default** — `AIRTABLE_SYNC_ENABLED` must be the literal string `"true"` to turn sync on. Any other value (including absent) is a kill-switch: every sync call is a no-op and the retry worker never starts.
 - **Non-blocking** — no HTTP request path ever awaits an Airtable call. Sync is triggered via `setImmediate(...)` from route handlers.
-- **Optional** — if `AIRTABLE_API_KEY` or `AIRTABLE_BASE_ID` is unset, every sync call is a no-op. The main app runs exactly as before.
+- **Optional** — if `AIRTABLE_API_KEY` or `AIRTABLE_BASE_ID` is unset (even with the switch on), sync is still a no-op. The main app runs exactly as before.
 - **Auditable** — every attempt (success, failure, or abandoned) is recorded in `airtable_sync_log`.
 - **Idempotent** — the sync engine looks up the last known `airtable_record_id` for each DB row and issues `PATCH` when present, `POST` when not, so repeated syncs don't create duplicates.
 
@@ -1349,6 +1350,7 @@ A retry worker (`startRetryWorker()` in `airtable.ts`, started from `index.ts`) 
 
 | Variable | Description |
 |---|---|
+| `AIRTABLE_SYNC_ENABLED` | Must be `"true"` to enable sync. Default off. |
 | `AIRTABLE_API_KEY` | Personal Access Token |
 | `AIRTABLE_BASE_ID` | Base ID, e.g. `appXXXXXXXXXXXXXX` |
 | `AIRTABLE_UPLOADS_TABLE` | Table name or ID for uploads |

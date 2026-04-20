@@ -142,7 +142,8 @@ pnpm --filter @workspace/api-spec run codegen
 | `PRIVATE_OBJECT_DIR` | — | GCS bucket path for uploads, e.g. `/my-bucket/uploads`. Unset = local storage mode. Leading slash is auto-added if omitted. |
 | `PUBLIC_OBJECT_SEARCH_PATHS` | — | Comma-separated GCS paths for public assets |
 | `GCS_CREDENTIALS_JSON` | — | Service account JSON (as a single-line string) for standard GCS auth. When set, the app uses the GCS SDK's native signing. When unset, falls back to Replit's sidecar at `http://127.0.0.1:1106`. Required for non-Replit deployments (Render, Cloud Run, etc.). |
-| `AIRTABLE_API_KEY` | — | Personal Access Token. When unset, Airtable sync is a no-op everywhere. |
+| `AIRTABLE_SYNC_ENABLED` | `false` | Master kill-switch. Sync is fully disabled unless set to the string `"true"`, regardless of other Airtable vars. |
+| `AIRTABLE_API_KEY` | — | Personal Access Token. Required when the sync is enabled. |
 | `AIRTABLE_BASE_ID` | — | Airtable base ID (e.g. `appXXXXXXXXXXXXXX`). Required with `AIRTABLE_API_KEY`. |
 | `AIRTABLE_UPLOADS_TABLE` / `AIRTABLE_LLM_RUNS_TABLE` / `AIRTABLE_REVIEWS_TABLE` / `AIRTABLE_MEALS_TABLE` / `AIRTABLE_WORKOUTS_TABLE` | — | Airtable table names or IDs, one per synced entity. Missing values disable sync for that entity only. |
 | `NODE_ENV` | — | Set to `production` to disable local dev routes |

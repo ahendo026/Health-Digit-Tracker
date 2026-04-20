@@ -86,10 +86,11 @@ The production deployment target is **Render**. Two services are defined in [`re
 
 ### Airtable sync (optional)
 
-Set these on the API service only. If `AIRTABLE_API_KEY` or `AIRTABLE_BASE_ID` is missing, all Airtable sync operations become no-ops and the app behaves exactly as before. See [SYSTEM.md §15](SYSTEM.md#15-airtable-sync).
+Set these on the API service only. **Sync is disabled by default** — set `AIRTABLE_SYNC_ENABLED=true` to activate it. When disabled (or when the API key / base id is missing), all sync operations are no-ops and the app behaves exactly as before. See [SYSTEM.md §15](SYSTEM.md#15-airtable-sync).
 
 | Variable | Description |
 |---|---|
+| `AIRTABLE_SYNC_ENABLED` | Master kill-switch. Must be the literal string `"true"` to enable sync. Any other value (or absent) disables it. |
 | `AIRTABLE_API_KEY` | Personal Access Token |
 | `AIRTABLE_BASE_ID` | Base ID (e.g. `appXXXXXXXXXXXXXX`) |
 | `AIRTABLE_UPLOADS_TABLE` | Airtable table name or ID for uploads |
