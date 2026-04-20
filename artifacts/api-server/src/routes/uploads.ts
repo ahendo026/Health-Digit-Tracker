@@ -1,6 +1,10 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
+import fs from "fs/promises";
+import path from "path";
+import { randomUUID } from "crypto";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { LOCAL_UPLOADS_DIR, isLocalUri, toLocalUri } from "../lib/localStorage";
 import { db } from "@workspace/db";
 import {
   uploadsTable,
@@ -24,6 +28,14 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 const storageService = new ObjectStorageService();
+
+const isLocalStorageMode = !process.env.PRIVATE_OBJECT_DIR && process.env.NODE_ENV !== "production";
+
+if (isLocalStorageMode) {
+  logger.info({ dir: LOCAL_UPLOADS_DIR }, "Local file storage mode active (PRIVATE_OBJECT_DIR not set)");
+} else {
+  logger.info("Object storage mode active");
+}
 
 router.get("/uploads/summary", async (req, res): Promise<void> => {
   const total = await db.select({ count: count() }).from(uploadsTable);
@@ -130,25 +142,37 @@ router.post("/uploads", upload.single("file"), async (req, res): Promise<void> =
   const { notes, sourceApp } = req.body as { notes?: string; sourceApp?: string };
 
   try {
-    const presignedUrl = await storageService.getObjectEntityUploadURL();
+    let objectPath: string;
 
-    const uploadResponse = await fetch(presignedUrl, {
-      method: "PUT",
-      body: req.file.buffer,
-      headers: {
-        "Content-Type": req.file.mimetype,
-        "Content-Length": String(req.file.size),
-      },
-    });
+    if (isLocalStorageMode) {
+      await fs.mkdir(LOCAL_UPLOADS_DIR, { recursive: true });
+      const ext = path.extname(req.file.originalname) || ".bin";
+      const filename = `${randomUUID()}${ext}`;
+      await fs.writeFile(path.join(LOCAL_UPLOADS_DIR, filename), req.file.buffer);
+      objectPath = toLocalUri(filename);
+      req.log.info({ objectPath }, "File saved to local storage");
+    } else {
+      const presignedUrl = await storageService.getObjectEntityUploadURL();
 
-    if (!uploadResponse.ok) {
-      req.log.error({ status: uploadResponse.status }, "Failed to upload file to object storage");
-      res.status(500).json({ error: "Failed to store file" });
-      return;
+      const uploadResponse = await fetch(presignedUrl, {
+        method: "PUT",
+        body: req.file.buffer,
+        headers: {
+          "Content-Type": req.file.mimetype,
+          "Content-Length": String(req.file.size),
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        req.log.error({ status: uploadResponse.status }, "Failed to upload file to object storage");
+        res.status(500).json({ error: "Failed to store file" });
+        return;
+      }
+
+      const objectUrl = presignedUrl.split("?")[0];
+      objectPath = storageService.normalizeObjectEntityPath(objectUrl);
+      req.log.info({ objectPath }, "File saved to object storage");
     }
-
-    const objectUrl = presignedUrl.split("?")[0];
-    const objectPath = storageService.normalizeObjectEntityPath(objectUrl);
 
     const [newUpload] = await db
       .insert(uploadsTable)

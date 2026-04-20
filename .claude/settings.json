@@ -1,0 +1,8 @@
+{
+  "env": {
+    "BASE_PATH": "/",
+"DATABASE_URL": "postgresql://neondb_owner:npg_0f5iPNTZQYnF@ep-little-forest-amixx3r6.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require",
+    "PGUSER": "neondb_owner",
+    "PGPASSWORD": "npg_WVwp1tXFJz6Z"
+  }
+}

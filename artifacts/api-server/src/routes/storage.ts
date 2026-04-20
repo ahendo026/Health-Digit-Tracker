@@ -1,7 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
+import path from "path";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
+import { LOCAL_UPLOADS_DIR } from "../lib/localStorage";
 
 interface RequestUploadUrlBodyType {
   name: string;
@@ -18,6 +20,32 @@ function parseRequestUploadUrlBody(body: unknown): { success: true; data: Reques
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+
+const isLocalStorageMode = !process.env.PRIVATE_OBJECT_DIR && process.env.NODE_ENV !== "production";
+
+if (isLocalStorageMode) {
+  /**
+   * GET /storage/local_uploads/:filename
+   *
+   * Serve locally-stored upload files in development (when PRIVATE_OBJECT_DIR is not set).
+   * Resolves local:// URIs stored in the DB to browser-loadable responses.
+   * Not registered in production.
+   */
+  router.get("/storage/local_uploads/:filename", (req: Request, res: Response) => {
+    // path.basename prevents path traversal (e.g. "../../etc/passwd")
+    const raw = req.params.filename;
+    const filename = path.basename(Array.isArray(raw) ? raw[0] : raw);
+    const filePath = path.join(LOCAL_UPLOADS_DIR, filename);
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        req.log.warn({ filename }, "Local upload file not found");
+        if (!res.headersSent) {
+          res.status(404).json({ error: "File not found" });
+        }
+      }
+    });
+  });
+}
 
 /**
  * POST /storage/uploads/request-url

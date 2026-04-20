@@ -65,13 +65,13 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Total Uploads</span>
-                <span className="font-medium">{summary.total}</span>
+                <span className="font-medium">{summary.total ?? 0}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Analyzed</span>
-                <span className="font-medium">{summary.analyzed}</span>
+                <span className="font-medium">{summary.analyzed ?? 0}</span>
               </div>
-              {summary.byClassification.map((c) => (
+              {(summary.byClassification ?? []).map((c) => (
                 <div key={c.classification} className="flex justify-between text-sm">
                   <span className="text-muted-foreground capitalize">
                     {c.classification?.replace(/_/g, " ") || "Unknown"}

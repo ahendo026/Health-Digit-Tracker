@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
+import { resolveUploadImageUrl } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { useListUploads, useCreateReview, getListUploadsQueryKey, getGetUploadSummaryQueryKey } from "@workspace/api-client-react";
 import { ClassificationBadge, StatusBadge } from "@/components/badges";
@@ -174,7 +175,7 @@ export default function ReviewPage() {
                       className="bg-muted sm:border-r border-b sm:border-b-0 border-border p-2 flex justify-center items-center hover:bg-muted/70 transition-colors"
                     >
                       <img
-                        src={`/api/storage${upload.filePath}`}
+                        src={resolveUploadImageUrl(upload.filePath)}
                         alt={upload.originalFilename}
                         className="max-h-36 max-w-full object-contain rounded-sm"
                       />

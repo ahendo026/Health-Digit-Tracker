@@ -1,5 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
+import fs from "fs/promises";
+import path from "path";
 import { ObjectStorageService } from "./objectStorage";
+import { isLocalUri, resolveLocalPath } from "./localStorage";
 import { logger } from "./logger";
 
 export type Classification =
@@ -115,6 +118,17 @@ function getClient(): Anthropic | null {
 async function fetchImageAsBase64(
   filePath: string
 ): Promise<{ base64: string; mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" }> {
+  if (isLocalUri(filePath)) {
+    const fullPath = resolveLocalPath(filePath);
+    const buffer = await fs.readFile(fullPath);
+    const ext = path.extname(fullPath).toLowerCase();
+    let mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" = "image/jpeg";
+    if (ext === ".png") mediaType = "image/png";
+    else if (ext === ".gif") mediaType = "image/gif";
+    else if (ext === ".webp") mediaType = "image/webp";
+    return { base64: buffer.toString("base64"), mediaType };
+  }
+
   const storageService = new ObjectStorageService();
   const objectFile = await storageService.getObjectEntityFile(filePath);
   const [buffer] = await objectFile.download();

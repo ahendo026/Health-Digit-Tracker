@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UploadCloud, File, X, Loader2 } from "lucide-react";
 import { useAnalyzeUpload, getGetUploadSummaryQueryKey, getListUploadsQueryKey } from "@workspace/api-client-react";
+import { apiUrl } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -45,7 +46,7 @@ export default function UploadPage() {
       if (sourceApp) formData.append("sourceApp", sourceApp);
       if (notes) formData.append("notes", notes);
 
-      const response = await fetch("/api/uploads", {
+      const response = await fetch(apiUrl("/api/uploads"), {
         method: "POST",
         body: formData,
       });
