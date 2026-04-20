@@ -2,15 +2,50 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { resolveUploadImageUrl } from "@/lib/api";
 import { Layout } from "@/components/layout";
-import { useListUploads, useCreateReview, getListUploadsQueryKey, getGetUploadSummaryQueryKey } from "@workspace/api-client-react";
+import { useListUploads, useCreateReview, getGetUploadQueryOptions, getListUploadsQueryKey, getGetUploadSummaryQueryKey } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { ClassificationBadge, StatusBadge } from "@/components/badges";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, ThumbsUp } from "lucide-react";
+import { Check, Loader2, ThumbsUp, ChevronDown, ChevronUp } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+
+function RawLlmOutput({ uploadId }: { uploadId: number }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useQuery({ ...getGetUploadQueryOptions(uploadId), enabled: open });
+  const rawOutput = data?.llmRuns?.[0]?.rawOutput;
+
+  return (
+    <div className="border-t border-border">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+      >
+        <span>Raw LLM Output</span>
+        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-3">
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading…
+            </div>
+          ) : rawOutput ? (
+            <div className="bg-slate-950 text-slate-50 rounded border border-slate-800 overflow-x-auto max-h-48">
+              <pre className="p-3 text-xs font-mono">{JSON.stringify(rawOutput, null, 2)}</pre>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground italic py-1">No LLM output recorded.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Tri = "yes" | "no" | "";
 
@@ -235,6 +270,7 @@ export default function ReviewPage() {
                       Submit Review
                     </Button>
                   </CardFooter>
+                  <RawLlmOutput uploadId={upload.id} />
                 </Card>
               );
             })}
