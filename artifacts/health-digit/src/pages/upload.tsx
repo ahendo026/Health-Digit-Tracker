@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud, X, Loader2, Camera, ImageIcon, RefreshCw } from "lucide-react";
+import { UploadCloud, X, Loader2, Camera, ImageIcon } from "lucide-react";
 import { useAnalyzeUpload, getGetUploadSummaryQueryKey, getListUploadsQueryKey } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,23 +19,11 @@ export default function UploadPage() {
 
   const [mode, setMode] = useState<"upload" | "camera">("upload");
   const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [sourceApp, setSourceApp] = useState("");
   const [notes, setNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
   const analyzeUpload = useAnalyzeUpload();
-
-  // Create/revoke object URL for preview
-  useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
@@ -52,10 +40,7 @@ export default function UploadPage() {
     }
   };
 
-  const clearFile = () => {
-    setFile(null);
-    setPreviewUrl(null);
-  };
+  const clearFile = () => setFile(null);
 
   const switchMode = (next: "upload" | "camera") => {
     if (next !== mode) {
@@ -121,61 +106,44 @@ export default function UploadPage() {
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
             <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileChange} />
 
-            {/* Mode toggle — only show when no file selected */}
-            {!file && (
-              <div className="flex rounded-lg border border-input overflow-hidden w-fit">
-                <button
-                  type="button"
-                  onClick={() => switchMode("upload")}
-                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                    mode === "upload" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  <UploadCloud className="w-4 h-4" /> Upload image
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMode("camera")}
-                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
-                    mode === "camera" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
-                  }`}
-                >
-                  <Camera className="w-4 h-4" /> Take photo
-                </button>
-              </div>
-            )}
+            {/* Mode toggle — always visible */}
+            <div className="flex rounded-lg border border-input overflow-hidden w-fit">
+              <button
+                type="button"
+                onClick={() => switchMode("upload")}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  mode === "upload" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <UploadCloud className="w-4 h-4" /> Upload image
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode("camera")}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  mode === "camera" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Camera className="w-4 h-4" /> Take photo
+              </button>
+            </div>
 
-            {/* File selection zone or image preview */}
-            {file && previewUrl ? (
-              /* Preview */
-              <div className="rounded-lg border border-border overflow-hidden">
-                <div className="bg-muted/40 px-3 py-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5 font-medium text-foreground truncate mr-2">
-                    <ImageIcon className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{file.name}</span>
-                  </span>
-                  <span className="shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
+            {/* File selection zone */}
+            {file ? (
+              /* Selected file — name/size only, no preview */
+              <div className="border-2 border-dashed rounded-lg p-6 flex items-center justify-between gap-4 border-primary/50 bg-primary/5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 bg-primary/10 rounded-lg text-primary shrink-0">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground truncate">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
+                  </div>
                 </div>
-                <div className="bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmMGYwZjAiLz48cmVjdCB4PSI0IiB5PSI0IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZjBmMGYwIi8+PC9zdmc+')] flex justify-center p-3">
-                  <img
-                    src={previewUrl}
-                    alt="Selected file preview"
-                    className="max-h-72 w-auto rounded shadow-sm border border-border/40 object-contain"
-                  />
-                </div>
-                <div className="px-3 py-2 border-t border-border bg-muted/20 flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => mode === "camera" ? cameraInputRef.current?.click() : fileInputRef.current?.click()}
-                    className="gap-1.5"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" /> Change
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={clearFile} className="gap-1.5 text-destructive hover:text-destructive">
-                    <X className="w-3.5 h-3.5" /> Remove
-                  </Button>
-                </div>
+                <Button variant="ghost" size="sm" onClick={clearFile} className="shrink-0 text-muted-foreground hover:text-destructive">
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
             ) : mode === "upload" ? (
               /* Upload drop zone */
