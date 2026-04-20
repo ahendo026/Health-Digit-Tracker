@@ -1,5 +1,6 @@
 import { useRoute, Link } from "wouter";
-import { resolveUploadImageUrl } from "@/lib/api";
+import { useState } from "react";
+import { resolveUploadImageUrl, apiUrl } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import {
   useGetUpload,
@@ -23,6 +24,7 @@ import {
   RotateCw,
   Loader2,
   ClipboardCheck,
+  Pencil,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -62,6 +64,30 @@ export default function DetailPage() {
   });
 
   const analyzeUpload = useAnalyzeUpload();
+  const [editingCapturedAt, setEditingCapturedAt] = useState(false);
+  const [capturedAtInput, setCapturedAtInput] = useState("");
+  const [savingCapturedAt, setSavingCapturedAt] = useState(false);
+
+  const handleSaveCapturedAt = async () => {
+    if (!capturedAtInput) return;
+    setSavingCapturedAt(true);
+    try {
+      const res = await fetch(apiUrl(`/api/uploads/${id}/captured-at`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ capturedAt: new Date(capturedAtInput).toISOString() }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      await queryClient.invalidateQueries({ queryKey: getGetUploadQueryKey(id) });
+      setEditingCapturedAt(false);
+      setCapturedAtInput("");
+      toast({ title: "Screen capture date saved" });
+    } catch {
+      toast({ title: "Could not save date", variant: "destructive" });
+    } finally {
+      setSavingCapturedAt(false);
+    }
+  };
 
   const handleRetry = async () => {
     try {
@@ -194,16 +220,49 @@ export default function DetailPage() {
           <div className="space-y-6 lg:col-span-1">
             <Card className="overflow-hidden border-border bg-card">
               <div className="border-b border-border divide-y divide-border text-xs">
-                {upload.capturedAt && (
-                  <div className="flex items-center justify-between px-3 py-2">
+                <div className="px-3 py-2">
+                  <div className="flex items-center justify-between">
                     <span className="text-muted-foreground flex items-center gap-1.5">
                       <Clock className="w-3 h-3" /> Screen Capture
                     </span>
-                    <span className="font-medium text-foreground">
-                      {format(new Date(upload.capturedAt), "MMM d, yyyy 'at' h:mm a")}
-                    </span>
+                    {upload.capturedAt ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-medium text-foreground">
+                          {format(new Date(upload.capturedAt), "MMM d, yyyy 'at' h:mm a")}
+                        </span>
+                        <button
+                          onClick={() => { setEditingCapturedAt(true); setCapturedAtInput(""); }}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ) : !editingCapturedAt ? (
+                      <button
+                        onClick={() => setEditingCapturedAt(true)}
+                        className="text-muted-foreground hover:text-foreground flex items-center gap-1"
+                      >
+                        <Pencil className="w-3 h-3" /> Enter date
+                      </button>
+                    ) : null}
                   </div>
-                )}
+                  {editingCapturedAt && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="datetime-local"
+                        value={capturedAtInput}
+                        onChange={(e) => setCapturedAtInput(e.target.value)}
+                        className="flex-1 h-8 rounded border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      />
+                      <Button size="sm" className="h-8 px-3 text-xs" onClick={handleSaveCapturedAt} disabled={!capturedAtInput || savingCapturedAt}>
+                        {savingCapturedAt ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => setEditingCapturedAt(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center justify-between px-3 py-2">
                   <span className="text-muted-foreground flex items-center gap-1.5">
                     <Clock className="w-3 h-3" /> Uploaded

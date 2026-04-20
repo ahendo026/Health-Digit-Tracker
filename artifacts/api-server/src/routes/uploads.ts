@@ -242,6 +242,39 @@ router.get("/uploads/:id", async (req, res): Promise<void> => {
   });
 });
 
+router.patch("/uploads/:id/captured-at", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const params = GetUploadParams.safeParse({ id: raw });
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const { capturedAt } = req.body as { capturedAt?: string };
+  if (!capturedAt) {
+    res.status(400).json({ error: "capturedAt is required" });
+    return;
+  }
+  const date = new Date(capturedAt);
+  if (isNaN(date.getTime())) {
+    res.status(400).json({ error: "capturedAt is not a valid date" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(uploadsTable)
+    .set({ capturedAt: date })
+    .where(eq(uploadsTable.id, params.data.id))
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "Upload not found" });
+    return;
+  }
+
+  res.json(updated);
+});
+
 router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = AnalyzeUploadParams.safeParse({ id: raw });

@@ -26,6 +26,8 @@ import type {
   ListUploadsResponse,
   LlmRun,
   Review,
+  SetUploadCapturedAtBody,
+  Upload,
   UploadDetail,
   UploadSummary,
 } from "./api.schemas";
@@ -293,6 +295,93 @@ export function useGetUpload<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Manually set the screen capture date/time for an upload
+ */
+export const getSetUploadCapturedAtUrl = (id: number) => {
+  return `/api/uploads/${id}/captured-at`;
+};
+
+export const setUploadCapturedAt = async (
+  id: number,
+  setUploadCapturedAtBody: SetUploadCapturedAtBody,
+  options?: RequestInit,
+): Promise<Upload> => {
+  return customFetch<Upload>(getSetUploadCapturedAtUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setUploadCapturedAtBody),
+  });
+};
+
+export const getSetUploadCapturedAtMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setUploadCapturedAt>>,
+    TError,
+    { id: number; data: BodyType<SetUploadCapturedAtBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setUploadCapturedAt>>,
+  TError,
+  { id: number; data: BodyType<SetUploadCapturedAtBody> },
+  TContext
+> => {
+  const mutationKey = ["setUploadCapturedAt"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setUploadCapturedAt>>,
+    { id: number; data: BodyType<SetUploadCapturedAtBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return setUploadCapturedAt(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetUploadCapturedAtMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setUploadCapturedAt>>
+>;
+export type SetUploadCapturedAtMutationBody = BodyType<SetUploadCapturedAtBody>;
+export type SetUploadCapturedAtMutationError = ErrorType<void>;
+
+/**
+ * @summary Manually set the screen capture date/time for an upload
+ */
+export const useSetUploadCapturedAt = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setUploadCapturedAt>>,
+    TError,
+    { id: number; data: BodyType<SetUploadCapturedAtBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setUploadCapturedAt>>,
+  TError,
+  { id: number; data: BodyType<SetUploadCapturedAtBody> },
+  TContext
+> => {
+  return useMutation(getSetUploadCapturedAtMutationOptions(options));
+};
 
 /**
  * @summary Trigger LLM analysis of an upload

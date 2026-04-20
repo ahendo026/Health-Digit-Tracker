@@ -42,6 +42,7 @@ export const ListUploadsResponse = zod.object({
       classification: zod.string().nullish(),
       confidence: zod.number().nullish(),
       summary: zod.string().nullish(),
+      capturedAt: zod.coerce.date().nullish(),
       status: zod.string(),
       notes: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -72,6 +73,7 @@ export const GetUploadResponse = zod.object({
     classification: zod.string().nullish(),
     confidence: zod.number().nullish(),
     summary: zod.string().nullish(),
+    capturedAt: zod.coerce.date().nullish(),
     status: zod.string(),
     notes: zod.string().nullish(),
     createdAt: zod.coerce.date(),
@@ -152,6 +154,35 @@ export const GetUploadResponse = zod.object({
       createdAt: zod.coerce.date(),
     }),
   ),
+});
+
+/**
+ * @summary Manually set the screen capture date/time for an upload
+ */
+export const SetUploadCapturedAtParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SetUploadCapturedAtBody = zod.object({
+  capturedAt: zod.coerce.date(),
+});
+
+export const SetUploadCapturedAtResponse = zod.object({
+  id: zod.number(),
+  userId: zod.number().nullish(),
+  filePath: zod.string(),
+  originalFilename: zod.string(),
+  mimeType: zod.string(),
+  fileSize: zod.number(),
+  sourceApp: zod.string().nullish(),
+  classification: zod.string().nullish(),
+  confidence: zod.number().nullish(),
+  summary: zod.string().nullish(),
+  capturedAt: zod.coerce.date().nullish(),
+  status: zod.string(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
 });
 
 /**
@@ -252,6 +283,7 @@ export const GetRecentActivityResponse = zod.object({
       classification: zod.string().nullish(),
       confidence: zod.number().nullish(),
       summary: zod.string().nullish(),
+      capturedAt: zod.coerce.date().nullish(),
       status: zod.string(),
       notes: zod.string().nullish(),
       createdAt: zod.coerce.date(),

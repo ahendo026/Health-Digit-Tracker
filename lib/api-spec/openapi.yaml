@@ -88,6 +88,38 @@ paths:
         "404":
           description: Not found
 
+  /uploads/{id}/captured-at:
+    patch:
+      operationId: setUploadCapturedAt
+      tags: [uploads]
+      summary: Manually set the screen capture date/time for an upload
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [capturedAt]
+              properties:
+                capturedAt:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Updated upload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Upload"
+        "404":
+          description: Not found
+
   /uploads/{id}/analyze:
     post:
       operationId: analyzeUpload
@@ -220,6 +252,9 @@ components:
           type: ["number", "null"]
         summary:
           type: ["string", "null"]
+        capturedAt:
+          type: ["string", "null"]
+          format: date-time
         status:
           type: string
         notes:

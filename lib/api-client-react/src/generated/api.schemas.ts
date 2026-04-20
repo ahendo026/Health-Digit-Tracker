@@ -25,6 +25,8 @@ export interface Upload {
   confidence?: number | null;
   /** @nullable */
   summary?: string | null;
+  /** @nullable */
+  capturedAt?: string | null;
   status: string;
   /** @nullable */
   notes?: string | null;
@@ -213,6 +215,10 @@ export type ListUploadsParams = {
   classification?: string;
   unreviewed?: boolean;
   status?: string;
+};
+
+export type SetUploadCapturedAtBody = {
+  capturedAt: string;
 };
 
 export type ListOutcomesParams = {
