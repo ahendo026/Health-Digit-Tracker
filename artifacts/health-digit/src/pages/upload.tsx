@@ -20,6 +20,7 @@ export default function UploadPage() {
   const [mode, setMode] = useState<"upload" | "camera">("upload");
   const [file, setFile] = useState<File | null>(null);
   const [sourceApp, setSourceApp] = useState("");
+  const [batchIdentifier, setBatchIdentifier] = useState("");
   const [notes, setNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
@@ -57,6 +58,7 @@ export default function UploadPage() {
       const formData = new FormData();
       formData.append("file", file);
       if (sourceApp) formData.append("sourceApp", sourceApp);
+      if (batchIdentifier.trim()) formData.append("batchIdentifier", batchIdentifier.trim());
       if (notes) formData.append("notes", notes);
 
       const response = await fetch(apiUrl("/api/uploads"), {
@@ -190,6 +192,20 @@ export default function UploadPage() {
                 onChange={(e) => setSourceApp(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Batch identifier <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 2026-07 morning readings"
+                value={batchIdentifier}
+                onChange={(e) => setBatchIdentifier(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+              <p className="text-xs text-muted-foreground">Free-text label to group this image with others.</p>
             </div>
 
             <div className="space-y-2">

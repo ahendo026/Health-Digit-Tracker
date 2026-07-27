@@ -45,6 +45,7 @@ export const ListUploadsResponse = zod.object({
       capturedAt: zod.coerce.date().nullish(),
       status: zod.string(),
       notes: zod.string().nullish(),
+      batchIdentifier: zod.string().nullish(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -76,6 +77,7 @@ export const GetUploadResponse = zod.object({
     capturedAt: zod.coerce.date().nullish(),
     status: zod.string(),
     notes: zod.string().nullish(),
+    batchIdentifier: zod.string().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -188,6 +190,37 @@ export const SetUploadCapturedAtResponse = zod.object({
   capturedAt: zod.coerce.date().nullish(),
   status: zod.string(),
   notes: zod.string().nullish(),
+  batchIdentifier: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Set or clear the free-text batch identifier for an upload
+ */
+export const SetUploadBatchIdentifierParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SetUploadBatchIdentifierBody = zod.object({
+  batchIdentifier: zod.string().nullable(),
+});
+
+export const SetUploadBatchIdentifierResponse = zod.object({
+  id: zod.number(),
+  userId: zod.number().nullish(),
+  filePath: zod.string(),
+  originalFilename: zod.string(),
+  mimeType: zod.string(),
+  fileSize: zod.number(),
+  sourceApp: zod.string().nullish(),
+  classification: zod.string().nullish(),
+  confidence: zod.number().nullish(),
+  summary: zod.string().nullish(),
+  capturedAt: zod.coerce.date().nullish(),
+  status: zod.string(),
+  notes: zod.string().nullish(),
+  batchIdentifier: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -211,6 +244,39 @@ export const AnalyzeUploadResponse = zod.object({
   status: zod.string(),
   errorMessage: zod.string().nullish(),
   createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Get global app settings
+ */
+export const GetSettingsResponse = zod.object({
+  analysisModel: zod.enum([
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+  ]),
+});
+
+/**
+ * @summary Update global app settings
+ */
+export const UpdateSettingsBody = zod.object({
+  analysisModel: zod.enum([
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+  ]),
+});
+
+export const UpdateSettingsResponse = zod.object({
+  analysisModel: zod.enum([
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+  ]),
 });
 
 /**
@@ -293,6 +359,7 @@ export const GetRecentActivityResponse = zod.object({
       capturedAt: zod.coerce.date().nullish(),
       status: zod.string(),
       notes: zod.string().nullish(),
+      batchIdentifier: zod.string().nullish(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),

@@ -9,6 +9,7 @@ import UploadPage from "@/pages/upload";
 import HistoryPage from "@/pages/history";
 import DetailPage from "@/pages/detail";
 import ReviewPage from "@/pages/review";
+import SettingsPage from "@/pages/settings";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/history" component={HistoryPage} />
       <Route path="/uploads/:id" component={DetailPage} />
       <Route path="/review" component={ReviewPage} />
+      <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>
   );

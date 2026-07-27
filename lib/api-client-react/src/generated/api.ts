@@ -26,7 +26,10 @@ import type {
   ListUploadsResponse,
   LlmRun,
   Review,
+  SetUploadBatchIdentifierBody,
   SetUploadCapturedAtBody,
+  Settings,
+  UpdateSettingsBody,
   Upload,
   UploadDetail,
   UploadSummary,
@@ -468,6 +471,94 @@ export const useSetUploadCapturedAt = <
 };
 
 /**
+ * @summary Set or clear the free-text batch identifier for an upload
+ */
+export const getSetUploadBatchIdentifierUrl = (id: number) => {
+  return `/api/uploads/${id}/batch-identifier`;
+};
+
+export const setUploadBatchIdentifier = async (
+  id: number,
+  setUploadBatchIdentifierBody: SetUploadBatchIdentifierBody,
+  options?: RequestInit,
+): Promise<Upload> => {
+  return customFetch<Upload>(getSetUploadBatchIdentifierUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setUploadBatchIdentifierBody),
+  });
+};
+
+export const getSetUploadBatchIdentifierMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setUploadBatchIdentifier>>,
+    TError,
+    { id: number; data: BodyType<SetUploadBatchIdentifierBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setUploadBatchIdentifier>>,
+  TError,
+  { id: number; data: BodyType<SetUploadBatchIdentifierBody> },
+  TContext
+> => {
+  const mutationKey = ["setUploadBatchIdentifier"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setUploadBatchIdentifier>>,
+    { id: number; data: BodyType<SetUploadBatchIdentifierBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return setUploadBatchIdentifier(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetUploadBatchIdentifierMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setUploadBatchIdentifier>>
+>;
+export type SetUploadBatchIdentifierMutationBody =
+  BodyType<SetUploadBatchIdentifierBody>;
+export type SetUploadBatchIdentifierMutationError = ErrorType<void>;
+
+/**
+ * @summary Set or clear the free-text batch identifier for an upload
+ */
+export const useSetUploadBatchIdentifier = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setUploadBatchIdentifier>>,
+    TError,
+    { id: number; data: BodyType<SetUploadBatchIdentifierBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setUploadBatchIdentifier>>,
+  TError,
+  { id: number; data: BodyType<SetUploadBatchIdentifierBody> },
+  TContext
+> => {
+  return useMutation(getSetUploadBatchIdentifierMutationOptions(options));
+};
+
+/**
  * @summary Trigger LLM analysis of an upload
  */
 export const getAnalyzeUploadUrl = (id: number) => {
@@ -549,6 +640,165 @@ export const useAnalyzeUpload = <
   TContext
 > => {
   return useMutation(getAnalyzeUploadMutationOptions(options));
+};
+
+/**
+ * @summary Get global app settings
+ */
+export const getGetSettingsUrl = () => {
+  return `/api/settings`;
+};
+
+export const getSettings = async (options?: RequestInit): Promise<Settings> => {
+  return customFetch<Settings>(getGetSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSettingsQueryKey = () => {
+  return [`/api/settings`] as const;
+};
+
+export const getGetSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSettingsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSettings>>> = ({
+    signal,
+  }) => getSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSettings>>
+>;
+export type GetSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get global app settings
+ */
+
+export function useGetSettings<
+  TData = Awaited<ReturnType<typeof getSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update global app settings
+ */
+export const getUpdateSettingsUrl = () => {
+  return `/api/settings`;
+};
+
+export const updateSettings = async (
+  updateSettingsBody: UpdateSettingsBody,
+  options?: RequestInit,
+): Promise<Settings> => {
+  return customFetch<Settings>(getUpdateSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSettingsBody),
+  });
+};
+
+export const getUpdateSettingsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSettings>>,
+    TError,
+    { data: BodyType<UpdateSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSettings>>,
+  TError,
+  { data: BodyType<UpdateSettingsBody> },
+  TContext
+> => {
+  const mutationKey = ["updateSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSettings>>,
+    { data: BodyType<UpdateSettingsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSettings>>
+>;
+export type UpdateSettingsMutationBody = BodyType<UpdateSettingsBody>;
+export type UpdateSettingsMutationError = ErrorType<void>;
+
+/**
+ * @summary Update global app settings
+ */
+export const useUpdateSettings = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSettings>>,
+    TError,
+    { data: BodyType<UpdateSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSettings>>,
+  TError,
+  { data: BodyType<UpdateSettingsBody> },
+  TContext
+> => {
+  return useMutation(getUpdateSettingsMutationOptions(options));
 };
 
 /**

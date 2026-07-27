@@ -25,7 +25,15 @@ export const uploadsTable = pgTable("uploads", {
   capturedAt: timestamp("captured_at", { withTimezone: true }),
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
+  batchIdentifier: text("batch_identifier"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+// Simple key/value store for global app settings (e.g. the model used for analysis).
+export const appSettingsTable = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
@@ -168,3 +176,4 @@ export type Meal = typeof mealsTable.$inferSelect;
 export type Workout = typeof workoutsTable.$inferSelect;
 export type Review = typeof reviewsTable.$inferSelect;
 export type Outcome = typeof outcomesTable.$inferSelect;
+export type AppSetting = typeof appSettingsTable.$inferSelect;

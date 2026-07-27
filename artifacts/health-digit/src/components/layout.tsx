@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetUploadSummary } from "@workspace/api-client-react";
-import { LayoutDashboard, List, UploadCloud, CheckCircle2, Menu, X } from "lucide-react";
+import { LayoutDashboard, List, UploadCloud, CheckCircle2, Menu, X, Settings } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 
@@ -14,6 +14,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { label: "Upload", href: "/", icon: UploadCloud },
     { label: "History", href: "/history", icon: List },
     { label: "Review", href: "/review", icon: CheckCircle2, badge: summary?.pendingReview },
+    { label: "Settings", href: "/settings", icon: Settings },
   ];
 
   const sidebarContent = (

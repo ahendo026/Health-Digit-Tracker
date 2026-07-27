@@ -9,6 +9,34 @@ export interface HealthStatus {
   status: string;
 }
 
+export type SettingsAnalysisModel =
+  (typeof SettingsAnalysisModel)[keyof typeof SettingsAnalysisModel];
+
+export const SettingsAnalysisModel = {
+  "claude-opus-4-8": "claude-opus-4-8",
+  "claude-sonnet-5": "claude-sonnet-5",
+  "claude-sonnet-4-6": "claude-sonnet-4-6",
+  "claude-haiku-4-5": "claude-haiku-4-5",
+} as const;
+
+export interface Settings {
+  analysisModel: SettingsAnalysisModel;
+}
+
+export type UpdateSettingsBodyAnalysisModel =
+  (typeof UpdateSettingsBodyAnalysisModel)[keyof typeof UpdateSettingsBodyAnalysisModel];
+
+export const UpdateSettingsBodyAnalysisModel = {
+  "claude-opus-4-8": "claude-opus-4-8",
+  "claude-sonnet-5": "claude-sonnet-5",
+  "claude-sonnet-4-6": "claude-sonnet-4-6",
+  "claude-haiku-4-5": "claude-haiku-4-5",
+} as const;
+
+export interface UpdateSettingsBody {
+  analysisModel: UpdateSettingsBodyAnalysisModel;
+}
+
 export interface Upload {
   id: number;
   /** @nullable */
@@ -30,6 +58,8 @@ export interface Upload {
   status: string;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  batchIdentifier?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -219,6 +249,11 @@ export type ListUploadsParams = {
 
 export type SetUploadCapturedAtBody = {
   capturedAt: string;
+};
+
+export type SetUploadBatchIdentifierBody = {
+  /** @nullable */
+  batchIdentifier: string | null;
 };
 
 export type ListOutcomesParams = {

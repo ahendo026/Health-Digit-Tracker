@@ -7,6 +7,7 @@ import {
   useAnalyzeUpload,
   useDeleteUpload,
   useListUploads,
+  useSetUploadBatchIdentifier,
   getGetUploadQueryKey,
   getGetUploadSummaryQueryKey,
   getListUploadsQueryKey,
@@ -41,6 +42,8 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Cpu,
+  Tag,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -90,6 +93,24 @@ export default function DetailPage() {
   const [editingCapturedAt, setEditingCapturedAt] = useState(false);
   const [capturedAtInput, setCapturedAtInput] = useState("");
   const [savingCapturedAt, setSavingCapturedAt] = useState(false);
+  const [editingBatch, setEditingBatch] = useState(false);
+  const [batchInput, setBatchInput] = useState("");
+  const setBatchIdentifier = useSetUploadBatchIdentifier();
+
+  const handleSaveBatch = async () => {
+    try {
+      await setBatchIdentifier.mutateAsync({
+        id,
+        data: { batchIdentifier: batchInput.trim() ? batchInput.trim() : null },
+      });
+      await queryClient.invalidateQueries({ queryKey: getGetUploadQueryKey(id) });
+      await queryClient.invalidateQueries({ queryKey: getListUploadsQueryKey() });
+      setEditingBatch(false);
+      toast({ title: "Batch identifier saved" });
+    } catch {
+      toast({ title: "Could not save batch identifier", variant: "destructive" });
+    }
+  };
 
   const handleSaveCapturedAt = async () => {
     if (!capturedAtInput) return;
@@ -364,6 +385,53 @@ export default function DetailPage() {
                     {format(new Date(upload.createdAt), "MMM d, yyyy 'at' h:mm a")}
                   </span>
                 </div>
+                <div className="px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Tag className="w-3 h-3" /> Batch
+                    </span>
+                    {!editingBatch && (
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className={`font-medium truncate ${upload.batchIdentifier ? "text-foreground" : "text-muted-foreground italic"}`}>
+                          {upload.batchIdentifier || "None"}
+                        </span>
+                        <button
+                          onClick={() => { setEditingBatch(true); setBatchInput(upload.batchIdentifier ?? ""); }}
+                          className="text-muted-foreground hover:text-foreground shrink-0"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                  {editingBatch && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={batchInput}
+                        placeholder="e.g. 2026-07 morning readings"
+                        onChange={(e) => setBatchInput(e.target.value)}
+                        className="flex-1 h-8 rounded border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      />
+                      <Button size="sm" className="h-8 px-3 text-xs" onClick={handleSaveBatch} disabled={setBatchIdentifier.isPending}>
+                        {setBatchIdentifier.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => setEditingBatch(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {llmRuns.length > 0 && (
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Cpu className="w-3 h-3" /> Model
+                    </span>
+                    <span className="font-medium text-foreground font-mono truncate">
+                      {llmRuns[0].modelName}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="bg-muted p-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground">
                 <span className="font-mono">{upload.mimeType}</span>

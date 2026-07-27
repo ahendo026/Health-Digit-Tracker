@@ -22,7 +22,8 @@ import {
   GetRecentActivityQueryParams,
   ListOutcomesQueryParams,
 } from "@workspace/api-zod";
-import { analyzeScreenshot } from "../lib/analysis";
+import { analyzeScreenshot, type AnalysisModel } from "../lib/analysis";
+import { getAnalysisModel } from "./settings";
 import { logger } from "../lib/logger";
 import { enqueue as enqueueAirtableSync } from "../lib/airtable";
 
@@ -140,7 +141,11 @@ router.post("/uploads", upload.single("file"), async (req, res): Promise<void> =
     return;
   }
 
-  const { notes, sourceApp } = req.body as { notes?: string; sourceApp?: string };
+  const { notes, sourceApp, batchIdentifier } = req.body as {
+    notes?: string;
+    sourceApp?: string;
+    batchIdentifier?: string;
+  };
 
   try {
     let objectPath: string;
@@ -185,6 +190,7 @@ router.post("/uploads", upload.single("file"), async (req, res): Promise<void> =
         status: "pending",
         notes: notes ?? null,
         sourceApp: sourceApp ?? null,
+        batchIdentifier: batchIdentifier?.trim() ? batchIdentifier.trim() : null,
       })
       .returning();
 
@@ -324,6 +330,34 @@ router.patch("/uploads/:id/captured-at", async (req, res): Promise<void> => {
   res.json(updated);
 });
 
+router.patch("/uploads/:id/batch-identifier", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const params = GetUploadParams.safeParse({ id: raw });
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const { batchIdentifier } = req.body as { batchIdentifier?: string | null };
+  const value =
+    typeof batchIdentifier === "string" && batchIdentifier.trim()
+      ? batchIdentifier.trim()
+      : null;
+
+  const [updated] = await db
+    .update(uploadsTable)
+    .set({ batchIdentifier: value })
+    .where(eq(uploadsTable.id, params.data.id))
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "Upload not found" });
+    return;
+  }
+
+  res.json(updated);
+});
+
 router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = AnalyzeUploadParams.safeParse({ id: raw });
@@ -353,7 +387,8 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
     .where(eq(uploadsTable.id, params.data.id));
 
   try {
-    const analysisResult = await analyzeScreenshot(uploadRecord.filePath);
+    const model = await getAnalysisModel();
+    const analysisResult = await analyzeScreenshot(uploadRecord.filePath, model as AnalysisModel);
 
     const safeDate = (v: string | undefined | null): Date | null => {
       if (!v) return null;
@@ -365,7 +400,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
       .insert(llmRunsTable)
       .values({
         uploadId: params.data.id,
-        modelName: "health-digit-placeholder-v1",
+        modelName: model,
         promptVersion: "1.1.0",
         rawOutput: analysisResult as unknown as Record<string, unknown>,
         classification: analysisResult.classification,

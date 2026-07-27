@@ -13,6 +13,24 @@ export type Classification =
   | "workout_event"
   | "unknown";
 
+// Vision-capable Claude models the user may pick for analysis. The first entry
+// is the default. Keep this list in sync with the picker in the frontend
+// settings page (artifacts/health-digit/src/pages/settings.tsx).
+export const ANALYSIS_MODELS = [
+  "claude-opus-4-8",
+  "claude-sonnet-5",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5",
+] as const;
+
+export type AnalysisModel = (typeof ANALYSIS_MODELS)[number];
+
+export const DEFAULT_ANALYSIS_MODEL: AnalysisModel = "claude-opus-4-8";
+
+export function isAnalysisModel(value: unknown): value is AnalysisModel {
+  return typeof value === "string" && (ANALYSIS_MODELS as readonly string[]).includes(value);
+}
+
 export interface AnalysisResult {
   classification: Classification;
   confidence: number;
@@ -191,8 +209,12 @@ function normalizeResult(raw: unknown): AnalysisResult {
   return { classification, confidence, summary, capturedAt, data };
 }
 
-export async function analyzeScreenshot(filePath: string): Promise<AnalysisResult> {
-  logger.info({ filePath }, "Running screenshot analysis");
+export async function analyzeScreenshot(
+  filePath: string,
+  model: AnalysisModel = DEFAULT_ANALYSIS_MODEL
+): Promise<AnalysisResult> {
+  const activeModel: AnalysisModel = isAnalysisModel(model) ? model : DEFAULT_ANALYSIS_MODEL;
+  logger.info({ filePath, model: activeModel }, "Running screenshot analysis");
 
   const client = getClient();
   if (!client) {
@@ -212,7 +234,7 @@ export async function analyzeScreenshot(filePath: string): Promise<AnalysisResul
     const now = new Date();
     const systemPrompt = buildSystemPrompt(now.toISOString(), now.toISOString().slice(0, 10));
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: activeModel,
       max_tokens: 8192,
       system: systemPrompt,
       messages: [

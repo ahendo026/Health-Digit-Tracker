@@ -135,6 +135,37 @@ paths:
         "404":
           description: Not found
 
+  /uploads/{id}/batch-identifier:
+    patch:
+      operationId: setUploadBatchIdentifier
+      tags: [uploads]
+      summary: Set or clear the free-text batch identifier for an upload
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [batchIdentifier]
+              properties:
+                batchIdentifier:
+                  type: ["string", "null"]
+      responses:
+        "200":
+          description: Updated upload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Upload"
+        "404":
+          description: Not found
+
   /uploads/{id}/analyze:
     post:
       operationId: analyzeUpload
@@ -157,6 +188,38 @@ paths:
           description: Not found
         "409":
           description: Already being analyzed
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get global app settings
+      responses:
+        "200":
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+    put:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update global app settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsBody"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+        "400":
+          description: Bad request
 
   /reviews:
     post:
@@ -244,6 +307,32 @@ components:
       required:
         - status
 
+    Settings:
+      type: object
+      properties:
+        analysisModel:
+          type: string
+          enum:
+            - claude-opus-4-8
+            - claude-sonnet-5
+            - claude-sonnet-4-6
+            - claude-haiku-4-5
+      required:
+        - analysisModel
+
+    UpdateSettingsBody:
+      type: object
+      properties:
+        analysisModel:
+          type: string
+          enum:
+            - claude-opus-4-8
+            - claude-sonnet-5
+            - claude-sonnet-4-6
+            - claude-haiku-4-5
+      required:
+        - analysisModel
+
     Upload:
       type: object
       properties:
@@ -273,6 +362,8 @@ components:
         status:
           type: string
         notes:
+          type: ["string", "null"]
+        batchIdentifier:
           type: ["string", "null"]
         createdAt:
           type: string
