@@ -9,9 +9,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Cpu } from "lucide-react";
-import { useGetSettings, useUpdateSettings, getGetSettingsQueryKey } from "@workspace/api-client-react";
+import { Loader2, Cpu, FileText, BookOpen } from "lucide-react";
+import {
+  useGetSettings,
+  useUpdateSettings,
+  useListDocs,
+  useGetDoc,
+  getGetSettingsQueryKey,
+} from "@workspace/api-client-react";
 import type { SettingsAnalysisModel } from "@workspace/api-client-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Markdown } from "@/components/markdown";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,6 +36,23 @@ const MODEL_OPTIONS: { id: SettingsAnalysisModel; label: string; hint: string }[
   { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", hint: "Fastest and cheapest" },
 ];
 
+// Mounted only while a doc is open, so useGetDoc runs (and refetches) exactly
+// when a document is selected — no need for a disabled-query options object.
+function DocViewer({ name }: { name: string }) {
+  const { data, isLoading } = useGetDoc({ name });
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+      </div>
+    );
+  }
+  if (!data) {
+    return <p className="text-sm text-muted-foreground">Could not load this document.</p>;
+  }
+  return <Markdown text={data.content} />;
+}
+
 export default function SettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -30,6 +60,9 @@ export default function SettingsPage() {
   const updateSettings = useUpdateSettings();
 
   const [model, setModel] = useState<SettingsAnalysisModel | undefined>(undefined);
+  const [openDoc, setOpenDoc] = useState<string | null>(null);
+
+  const { data: docList } = useListDocs();
 
   // Seed the local selection once the current setting loads.
   useEffect(() => {
@@ -96,6 +129,48 @@ export default function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        <Card className="mt-6">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-primary" /> Documentation
+            </CardTitle>
+            <CardDescription>
+              Read-only views of the in-repo guides. Served from the running deploy, so you always
+              see the docs for the code that's live.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {(docList?.docs ?? []).map((d) => (
+                <Button
+                  key={d.name}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setOpenDoc(d.name)}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  {d.title}
+                </Button>
+              ))}
+              {docList && docList.docs.length === 0 && (
+                <p className="text-sm text-muted-foreground">No documents available.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Dialog open={!!openDoc} onOpenChange={(o) => !o && setOpenDoc(null)}>
+          <DialogContent className="max-w-3xl w-[calc(100vw-2rem)] max-h-[85vh] flex flex-col p-0 gap-0">
+            <DialogHeader className="px-5 py-3 border-b border-border">
+              <DialogTitle className="font-mono text-sm">{openDoc}</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto px-5 py-4">
+              {openDoc && <DocViewer name={openDoc} />}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

@@ -18,6 +18,9 @@ import type {
 
 import type {
   CreateReviewBody,
+  DocContent,
+  DocList,
+  GetDocParams,
   GetRecentActivityParams,
   HealthStatus,
   ListOutcomesParams,
@@ -800,6 +803,155 @@ export const useUpdateSettings = <
 > => {
   return useMutation(getUpdateSettingsMutationOptions(options));
 };
+
+/**
+ * @summary List the in-repo Markdown documents available to view
+ */
+export const getListDocsUrl = () => {
+  return `/api/docs`;
+};
+
+export const listDocs = async (options?: RequestInit): Promise<DocList> => {
+  return customFetch<DocList>(getListDocsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListDocsQueryKey = () => {
+  return [`/api/docs`] as const;
+};
+
+export const getListDocsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDocs>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listDocs>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDocsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDocs>>> = ({
+    signal,
+  }) => listDocs({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDocs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListDocsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDocs>>
+>;
+export type ListDocsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the in-repo Markdown documents available to view
+ */
+
+export function useListDocs<
+  TData = Awaited<ReturnType<typeof listDocs>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listDocs>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListDocsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the contents of a single in-repo Markdown document
+ */
+export const getGetDocUrl = (params: GetDocParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/doc?${stringifiedParams}`
+    : `/api/doc`;
+};
+
+export const getDoc = async (
+  params: GetDocParams,
+  options?: RequestInit,
+): Promise<DocContent> => {
+  return customFetch<DocContent>(getGetDocUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDocQueryKey = (params?: GetDocParams) => {
+  return [`/api/doc`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetDocQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDoc>>,
+  TError = ErrorType<void>,
+>(
+  params: GetDocParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getDoc>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDocQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDoc>>> = ({
+    signal,
+  }) => getDoc(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDoc>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDocQueryResult = NonNullable<Awaited<ReturnType<typeof getDoc>>>;
+export type GetDocQueryError = ErrorType<void>;
+
+/**
+ * @summary Get the contents of a single in-repo Markdown document
+ */
+
+export function useGetDoc<
+  TData = Awaited<ReturnType<typeof getDoc>>,
+  TError = ErrorType<void>,
+>(
+  params: GetDocParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getDoc>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDocQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Submit a manual review for an upload

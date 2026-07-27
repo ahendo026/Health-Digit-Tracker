@@ -280,6 +280,30 @@ export const UpdateSettingsResponse = zod.object({
 });
 
 /**
+ * @summary List the in-repo Markdown documents available to view
+ */
+export const ListDocsResponse = zod.object({
+  docs: zod.array(
+    zod.object({
+      name: zod.string(),
+      title: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get the contents of a single in-repo Markdown document
+ */
+export const GetDocQueryParams = zod.object({
+  name: zod.coerce.string(),
+});
+
+export const GetDocResponse = zod.object({
+  name: zod.string(),
+  content: zod.string(),
+});
+
+/**
  * @summary Submit a manual review for an upload
  */
 export const CreateReviewBody = zod.object({

@@ -221,6 +221,40 @@ paths:
         "400":
           description: Bad request
 
+  /docs:
+    get:
+      operationId: listDocs
+      tags: [docs]
+      summary: List the in-repo Markdown documents available to view
+      responses:
+        "200":
+          description: Available documents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocList"
+
+  /doc:
+    get:
+      operationId: getDoc
+      tags: [docs]
+      summary: Get the contents of a single in-repo Markdown document
+      parameters:
+        - in: query
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Document contents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocContent"
+        "404":
+          description: Unknown or missing document
+
   /reviews:
     post:
       operationId: createReview
@@ -332,6 +366,38 @@ components:
             - claude-haiku-4-5
       required:
         - analysisModel
+
+    DocInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        title:
+          type: string
+      required:
+        - name
+        - title
+
+    DocList:
+      type: object
+      properties:
+        docs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocInfo"
+      required:
+        - docs
+
+    DocContent:
+      type: object
+      properties:
+        name:
+          type: string
+        content:
+          type: string
+      required:
+        - name
+        - content
 
     Upload:
       type: object

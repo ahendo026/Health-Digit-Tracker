@@ -37,6 +37,20 @@ export interface UpdateSettingsBody {
   analysisModel: UpdateSettingsBodyAnalysisModel;
 }
 
+export interface DocInfo {
+  name: string;
+  title: string;
+}
+
+export interface DocList {
+  docs: DocInfo[];
+}
+
+export interface DocContent {
+  name: string;
+  content: string;
+}
+
 export interface Upload {
   id: number;
   /** @nullable */
@@ -254,6 +268,10 @@ export type SetUploadCapturedAtBody = {
 export type SetUploadBatchIdentifierBody = {
   /** @nullable */
   batchIdentifier: string | null;
+};
+
+export type GetDocParams = {
+  name: string;
 };
 
 export type ListOutcomesParams = {
