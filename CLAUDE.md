@@ -52,8 +52,8 @@ There is no test runner. Type checking is the primary correctness mechanism.
 - **OpenAPI spec** (`lib/api-spec/openapi.yaml`) is the single source of truth for all routes
 - **Orval codegen** generates `lib/api-zod` (server validation) and `lib/api-client-react` (frontend hooks) — never edit these by hand
 - **File storage**: local disk in dev (`local://` URIs), GCS in production (`/objects/` paths). GCS auth supports either Replit sidecar (default) or standard service account credentials via `GCS_CREDENTIALS_JSON` env var.
-- **LLM**: `analyzeScreenshot()` in `artifacts/api-server/src/lib/analysis.ts` calls Claude Sonnet 4.6 with a vision prompt; returns a typed `AnalysisResult` that includes `capturedAt` (date/time extracted from the image itself).
-- **DB**: 12 tables defined in `lib/db/src/schema/uploads.ts`; schema-push only, no migration files
+- **LLM**: `analyzeScreenshot()` in `artifacts/api-server/src/lib/analysis.ts` calls the Claude vision model configured in Settings (default `claude-opus-4-8`, selectable via the global `app_settings` store); returns a typed `AnalysisResult` that includes `capturedAt` (date/time extracted from the image itself).
+- **DB**: 13 tables defined in `lib/db/src/schema/uploads.ts` (includes `app_settings`); schema-push only, no migration files
 - **Deployment**: `render.yaml` at repo root defines two Render services — API web service + static frontend. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 See [docs/SYSTEM.md](docs/SYSTEM.md) for the full architecture, data flow, and component descriptions.

@@ -1,6 +1,6 @@
 # HealthDigits
 
-A private web app for digitizing health data from screenshots. Upload an image from any wearable, health app, or medical device — Claude Sonnet 4.6 classifies and extracts structured readings. Review and approve the results through a clean UI.
+A private web app for digitizing health data from screenshots. Upload an image from any wearable, health app, or medical device — a Claude vision model (selectable in Settings, default Claude Opus 4.8) classifies and extracts structured readings. Review and approve the results through a clean UI.
 
 **Full documentation → [docs/SYSTEM.md](docs/SYSTEM.md)**
 
@@ -94,7 +94,7 @@ pnpm --filter @workspace/api-spec run codegen    # regenerate API types from Ope
 | Step | Description |
 |---|---|
 | **Upload** | Drag-and-drop a screenshot from any health app |
-| **Analyze** | Claude Sonnet 4.6 classifies and extracts structured data |
+| **Analyze** | A Claude vision model classifies and extracts structured data |
 | **Review** | Confirm or correct the AI's classification and values |
 | **Store** | Approved records persist as typed health events |
 
@@ -109,7 +109,7 @@ pnpm --filter @workspace/api-spec run codegen    # regenerate API types from Ope
 | Frontend | React 19, Vite 7, Tailwind CSS 4, shadcn/ui, Wouter |
 | API | Express 5, Node 24, TypeScript 5.9 |
 | Database | PostgreSQL 16 (Neon), Drizzle ORM |
-| AI | Anthropic Claude Sonnet 4.6 (vision) |
+| AI | Anthropic Claude (vision) — model selectable in Settings, default Claude Opus 4.8 |
 | API contract | OpenAPI 3 → Orval (generates Zod + React Query) |
 | Storage | GCS (production) / local disk (development) |
 | Monorepo | pnpm workspaces |

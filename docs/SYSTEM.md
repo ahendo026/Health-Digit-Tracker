@@ -1,7 +1,7 @@
 # HealthDigits — System Documentation
 
-**Version**: 1.0 · **Updated**: 2026-04-19  
-**Stack**: Node 24 · TypeScript 5.9 · React 19 · Express 5 · PostgreSQL 16 (Neon) · Claude Sonnet 4.6
+**Version**: 1.1 · **Updated**: 2026-08-07  
+**Stack**: Node 24 · TypeScript 5.9 · React 19 · Express 5 · PostgreSQL 16 (Neon) · Claude (configurable vision model, default Opus 4.8)
 
 ---
 
@@ -29,7 +29,7 @@
 
 ### Purpose
 
-HealthDigits digitizes health data captured in screenshots. Users upload images from any health app, wearable, or medical device. An AI vision model (Claude Sonnet 4.6) classifies the image and extracts structured readings — blood pressure, glucose, weight, meals, or workout data — which are stored in a relational database and surfaced in a review UI.
+HealthDigits digitizes health data captured in screenshots. Users upload images from any health app, wearable, or medical device. A Claude vision model (selectable on the Settings page; default `claude-opus-4-8`) classifies the image and extracts structured readings — blood pressure, glucose, weight, meals, or workout data — which are stored in a relational database and surfaced in a review UI.
 
 The core thesis: most health data lives as screenshots. HealthDigits turns those screenshots into structured, queryable records.
 
@@ -49,7 +49,7 @@ The core thesis: most health data lives as screenshots. HealthDigits turns those
 │  Browser  (port 24283)                                          │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  React 19 + Vite 7 + Tailwind CSS                        │   │
-│  │  Upload · History · Detail · Review                      │   │
+│  │  Upload · History · Detail · Review · Settings           │   │
 │  └───────────────────────┬──────────────────────────────────┘   │
 └──────────────────────────┼──────────────────────────────────────┘
                            │  HTTP (JSON + multipart)
@@ -58,8 +58,8 @@ The core thesis: most health data lives as screenshots. HealthDigits turns those
 │  Express 5 · TypeScript · esbuild bundle                        │
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐    │
-│  │  uploads     │  │  storage     │  │  health            │    │
-│  │  route       │  │  route       │  │  route             │    │
+│  │  uploads     │  │  storage     │  │  health · settings │    │
+│  │  route       │  │  route       │  │  · docs routes     │    │
 │  └──────┬───────┘  └──────┬───────┘  └────────────────────┘    │
 │         │                 │                                     │
 │  ┌──────▼───────┐  ┌──────▼───────┐  ┌────────────────────┐    │
@@ -69,8 +69,8 @@ The core thesis: most health data lives as screenshots. HealthDigits turns those
 └─────────┼───────────────────────────────────────────────────────┘
           │  Anthropic API
 ┌─────────▼──────────┐     ┌──────────────────────────────────────┐
-│  Claude Sonnet 4.6 │     │  PostgreSQL 16 (Neon)                │
-│  Vision model      │     │  Drizzle ORM                         │
+│  Claude (vision)   │     │  PostgreSQL 16 (Neon)                │
+│  configurable model│     │  Drizzle ORM                         │
 └────────────────────┘     └──────────────────────────────────────┘
 ```
 
@@ -117,7 +117,7 @@ The API server runs on **port 8080**. All routes are mounted under `/api`.
 | Schema management | `drizzle-kit push` (no migration files) |
 | Zod integration | `drizzle-zod` for insert schema generation |
 
-The single schema file is `lib/db/src/schema/uploads.ts`. All 12 tables are defined there.
+The single schema file is `lib/db/src/schema/uploads.ts`. All 13 tables are defined there.
 
 ### Storage Layer
 
@@ -132,13 +132,13 @@ Two modes determined at API server startup:
 
 | Concern | Detail |
 |---|---|
-| Model | `claude-sonnet-4-6` |
+| Model | Selectable on the Settings page: `claude-opus-4-8` (default) · `claude-sonnet-5` · `claude-sonnet-4-6` · `claude-haiku-4-5`. Persisted in the `app_settings` table under key `analysis_model`. |
 | Input | Base64-encoded image (JPEG / PNG / GIF / WebP) |
 | Output | Structured JSON (classification, confidence, summary, extracted data) |
 | Max tokens | 8,192 |
 | Auth | `AI_INTEGRATIONS_ANTHROPIC_API_KEY` + optional `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` |
 
-If either env var is absent, analysis returns `classification: "unknown"` with a warning log and no API call is made.
+If the API key is absent, analysis returns `classification: "unknown"` with a warning log and no API call is made.
 
 ### Monorepo — pnpm Workspaces
 
@@ -151,6 +151,8 @@ lib/
   api-spec/                @workspace/api-spec     ← OpenAPI spec + Orval config
   api-zod/                 @workspace/api-zod      ← generated, do not edit
   api-client-react/        @workspace/api-client-react  ← generated, do not edit
+tools/
+  bench/                   ← standalone accuracy bench: ground-truth labeler + harness (see tools/bench/README.md)
 render.yaml                ← two-service Render blueprint (API + static frontend)
 scripts/refresh-portproxy.ps1   ← Windows helper for WSL + Tailscale dev setups
 ```
@@ -168,7 +170,7 @@ Root `package.json` exposes `dev:api` and `dev:frontend` convenience scripts tha
 ```
 Step 1 — User selects a file in the browser
   Frontend: POST /api/uploads  (multipart/form-data)
-  Fields: file (binary), sourceApp? (string), notes? (string)
+  Fields: file (binary), sourceApp? (string), notes? (string), batchIdentifier? (string)
 
 Step 2 — API server receives the file via multer (memory storage)
   [Local dev]  Write buffer to local_uploads/<uuid>.<ext>
@@ -184,14 +186,15 @@ Step 3 — Frontend immediately fires POST /api/uploads/:id/analyze
 
 Step 4 — API server starts analysis
   UPDATE uploads SET status='analyzing'
-  Call analyzeScreenshot(filePath)
+  Read the configured model from app_settings (key 'analysis_model')
+  Call analyzeScreenshot(filePath, model)
 
 Step 5 — analyzeScreenshot() loads the image
   [local://]   fs.readFile(resolveLocalPath(filePath))
   [/objects/]  GCS download via ObjectStorageService
   Base64-encode the buffer
 
-Step 6 — Send to Claude Sonnet 4.6
+Step 6 — Send to the configured Claude model
   System prompt: classification rules + JSON schema
   User message: base64 image + "Analyze and return JSON"
   Model returns JSON string
@@ -237,11 +240,11 @@ Display: resolveUploadImageUrl("local://local_uploads/abc-123.jpg")
 
 ### Uploads Route — `artifacts/api-server/src/routes/uploads.ts`
 
-**Purpose**: Handles the full lifecycle of an upload — creation, analysis trigger, retrieval, deletion, manual date correction, and review submission.
+**Purpose**: Handles the full lifecycle of an upload — creation, analysis trigger, retrieval, deletion, manual date correction, batch tagging, and review submission.
 
 **Responsibilities**:
-- Accept multipart file uploads and write to local disk or GCS
-- Insert and update `uploads` table rows (including `captured_at` from analysis or `PATCH /captured-at`)
+- Accept multipart file uploads (with optional `sourceApp`, `notes`, `batchIdentifier`) and write to local disk or GCS
+- Insert and update `uploads` table rows (including `captured_at` from analysis or `PATCH /captured-at`, and `batch_identifier` via `PATCH /batch-identifier`)
 - Delegate LLM analysis to `analyzeScreenshot()`
 - Persist normalized data into `events`, `meals`, `workouts` (all scoped to `upload_id`; integer fields rounded via `Math.round()`)
 - Cascade-delete children + stored file on `DELETE /api/uploads/:id`
@@ -259,7 +262,7 @@ Display: resolveUploadImageUrl("local://local_uploads/abc-123.jpg")
 
 ### Analysis Service — `artifacts/api-server/src/lib/analysis.ts`
 
-**Purpose**: Accepts a `filePath`, loads the image, calls Claude Sonnet 4.6, and returns a typed `AnalysisResult`.
+**Purpose**: Accepts a `filePath` and a model id, loads the image, calls the Claude vision model, and returns a typed `AnalysisResult`. Exports `ANALYSIS_MODELS` (the four pickable models), `DEFAULT_ANALYSIS_MODEL` (`claude-opus-4-8`), and the `isAnalysisModel()` guard.
 
 **Responsibilities**:
 - Detect `local://` vs GCS paths and load the image accordingly
@@ -331,7 +334,7 @@ resolveLocalPath("local://local_uploads/abc.jpg")
 
 ### Database Models — `lib/db/src/schema/uploads.ts`
 
-**Purpose**: Single source of truth for all 12 PostgreSQL table definitions.
+**Purpose**: Single source of truth for all 13 PostgreSQL table definitions.
 
 **Responsibilities**:
 - Define tables, columns, types, defaults, foreign key relationships
@@ -342,13 +345,34 @@ resolveLocalPath("local://local_uploads/abc.jpg")
 
 ---
 
+### Settings Route — `artifacts/api-server/src/routes/settings.ts`
+
+**Purpose**: Read/write global app settings stored in the `app_settings` key/value table.
+
+**Responsibilities**:
+- `GET /api/settings` — return the current `analysisModel` (falls back to `DEFAULT_ANALYSIS_MODEL` when unset)
+- `PUT /api/settings` — validate against `ANALYSIS_MODELS` and upsert the `analysis_model` key
+- Export `getAnalysisModel()`, used by the analyze route to pick the model per run
+
+---
+
+### Docs Route — `artifacts/api-server/src/routes/docs.ts`
+
+**Purpose**: Read-only viewer for in-repo Markdown docs, served from the running deploy so the docs always match the live code.
+
+**Responsibilities**:
+- `GET /api/docs` — list the fixed six-document allowlist (README, SYSTEM, ARCHITECTURE, DEPLOYMENT, CLAUDE, AGENTS)
+- `GET /api/doc?name=` — return one document's Markdown content; names are matched exactly against the allowlist, so there is no arbitrary path access
+
+---
+
 ### Frontend — Upload Page — `artifacts/health-digit/src/pages/upload.tsx`
 
 **Purpose**: Entry point for creating new health data records.
 
 **Responsibilities**:
 - Render a drag-and-drop file input (accepts `image/*`)
-- Accept optional `sourceApp` and `notes` fields
+- Accept optional `sourceApp`, `notes`, and `batchIdentifier` fields
 - `POST /api/uploads` with `multipart/form-data`
 - Immediately fire `POST /api/uploads/:id/analyze` (fire-and-forget)
 - Navigate to the detail page (`/uploads/:id`) before analysis completes
@@ -370,6 +394,16 @@ resolveLocalPath("local://local_uploads/abc.jpg")
 
 ---
 
+### Frontend — Settings Page — `artifacts/health-digit/src/pages/settings.tsx`
+
+**Purpose**: Global app configuration and in-app documentation viewer, at `/settings`.
+
+**Responsibilities**:
+- Analysis-model picker (the four `ANALYSIS_MODELS` options with labels/hints, kept in sync with `analysis.ts`); saves via `PUT /api/settings`
+- Documentation browser: lists docs from `GET /api/docs` and renders the selected file's Markdown in a dialog (`components/markdown.tsx`)
+
+---
+
 ## 5. API Documentation
 
 All routes are prefixed with `/api`. The server listens on **port 8080**.
@@ -385,6 +419,7 @@ Create a new upload record and store the file.
 | `file` | binary | yes | The screenshot image |
 | `sourceApp` | string | no | Name of the app the screenshot came from |
 | `notes` | string | no | Free-text context |
+| `batchIdentifier` | string | no | Tag grouping related uploads (e.g. a bench-harness run); trimmed, empty → `null` |
 
 **Response `201`**:
 ```json
@@ -399,8 +434,10 @@ Create a new upload record and store the file.
   "classification": null,
   "confidence": null,
   "summary": null,
+  "capturedAt": null,
   "status": "pending",
   "notes": null,
+  "batchIdentifier": null,
   "createdAt": "2026-04-19T20:27:00.000Z",
   "updatedAt": "2026-04-19T20:27:00.000Z"
 }
@@ -478,17 +515,33 @@ Manually set the `capturedAt` date/time on an upload. Used by the Detail page wh
 
 ---
 
+### `PATCH /api/uploads/:id/batch-identifier`
+
+Set or clear the `batchIdentifier` tag on an upload. Used by the Detail page's inline edit and by the bench harness (`tools/bench/`) to group test uploads for later cleanup.
+
+**Request body**:
+```json
+{ "batchIdentifier": "trl3-bench-2026-08-01" }
+```
+
+Pass `null` (or an empty/whitespace string) to clear the tag.
+
+**Response `200`**: the updated `Upload` record
+**Response `404`**: `{ "error": "Upload not found" }`
+
+---
+
 ### `POST /api/uploads/:id/analyze`
 
-Trigger AI analysis for an upload. Sets `status` to `analyzing`, calls Claude Sonnet 4.6, then updates to `analyzed` or `failed`.
+Trigger AI analysis for an upload. Sets `status` to `analyzing`, calls the Claude model configured in Settings (default `claude-opus-4-8`), then updates to `analyzed` or `failed`.
 
 **Response `200`** (the `llm_runs` row):
 ```json
 {
   "id": 7,
   "uploadId": 42,
-  "modelName": "health-digit-placeholder-v1",
-  "promptVersion": "1.0.0",
+  "modelName": "claude-opus-4-8",
+  "promptVersion": "1.1.0",
   "rawOutput": { ...full LLM response },
   "classification": "blood_pressure_reading",
   "confidence": 0.99,
@@ -571,6 +624,12 @@ Serves a private object from GCS. The path must match a file under `PRIVATE_OBJE
 
 ---
 
+### `GET /api/storage/public-objects/*`
+
+Serves a public asset found under one of the `PUBLIC_OBJECT_SEARCH_PATHS` GCS prefixes. Returns `404` when the variable is unset or no path matches.
+
+---
+
 ### `POST /api/storage/uploads/request-url`
 
 Request a presigned GCS PUT URL for direct client-side upload (production flow only).
@@ -584,6 +643,42 @@ Request a presigned GCS PUT URL for direct client-side upload (production flow o
 ```json
 { "uploadURL": "https://storage.googleapis.com/...", "objectPath": "/objects/<uuid>", "metadata": {...} }
 ```
+
+---
+
+### `GET /api/settings`
+
+Return the current global app settings.
+
+**Response `200`**: `{ "analysisModel": "claude-opus-4-8" }`
+
+---
+
+### `PUT /api/settings`
+
+Update the analysis model.
+
+**Request body**: `{ "analysisModel": "claude-sonnet-5" }` — must be one of `claude-opus-4-8`, `claude-sonnet-5`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
+
+**Response `200`**: the saved settings object
+**Response `400`**: `{ "error": "analysisModel must be one of: ..." }`
+
+---
+
+### `GET /api/docs`
+
+List the in-repo Markdown documents available to the Settings-page viewer.
+
+**Response `200`**: `{ "docs": [ { "name": "docs/SYSTEM.md", "title": "System overview" }, ... ] }`
+
+---
+
+### `GET /api/doc?name=<name>`
+
+Return one document's Markdown content. `name` must exactly match an entry from `GET /api/docs` (fixed allowlist — no arbitrary file access).
+
+**Response `200`**: `{ "name": "docs/SYSTEM.md", "content": "# HealthDigits — ..." }`
+**Response `404`**: `{ "error": "Unknown document" }`
 
 ---
 
@@ -617,6 +712,8 @@ Create `artifacts/api-server/.env` for local development. In production, set as 
 | `GCS_CREDENTIALS_JSON` | — | Service account JSON (single-line string). When set, `objectStorage.ts` uses the GCS SDK's native signing. When absent, falls back to Replit's sidecar at `http://127.0.0.1:1106`. Required for non-Replit deployments. |
 | `PUBLIC_OBJECT_SEARCH_PATHS` | — | Comma-separated GCS paths for public static assets |
 | `LOG_LEVEL` | `info` | Pino log level: `trace` · `debug` · `info` · `warn` · `error` |
+| `AIRTABLE_SYNC_ENABLED` | `false` | Master kill-switch for the Airtable sync; must be the literal string `"true"` to enable. See [§15 Airtable Sync](#15-airtable-sync). |
+| `AIRTABLE_API_KEY` / `AIRTABLE_BASE_ID` / `AIRTABLE_*_TABLE` | — | Airtable credentials and per-entity table names. Full reference in [§15](#15-airtable-sync). |
 
 ### Frontend
 
@@ -714,7 +811,7 @@ Supported media types: `image/jpeg`, `image/png`, `image/gif`, `image/webp`. Unk
 
 ```typescript
 client.messages.create({
-  model: "claude-sonnet-4-6",
+  model,   // from app_settings key "analysis_model"; default "claude-opus-4-8"
   max_tokens: 8192,
   system: SYSTEM_PROMPT,
   messages: [{
@@ -821,7 +918,18 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
 | `captured_at` | timestamptz | Date/time extracted from the image by the LLM, or manually set via `PATCH /api/uploads/:id/captured-at`. Independent of `created_at`. |
 | `status` | text | `pending` → `analyzing` → `analyzed` \| `failed` |
 | `notes` | text | User-provided context |
+| `batch_identifier` | text | Optional tag grouping related uploads (set at upload time or via `PATCH /api/uploads/:id/batch-identifier`); used by the bench harness for bulk cleanup |
 | `created_at` / `updated_at` | timestamptz | |
+
+### `app_settings`
+
+Simple key/value store for global app settings.
+
+| Column | Type | Notes |
+|---|---|---|
+| `key` | text PK | e.g. `analysis_model` |
+| `value` | text NOT NULL | e.g. `claude-opus-4-8` |
+| `updated_at` | timestamptz | Auto-updated on write |
 
 ### `llm_runs`
 
@@ -909,7 +1017,7 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
 
 1. User visits `/` (Upload page)
 2. A mode toggle picks between **Upload image** (file picker / drag-and-drop) and **Take photo** (device camera via `capture="environment"` attribute). Both toggles stay visible at all times.
-3. Optional `sourceApp` and `notes` fields available
+3. Optional `sourceApp`, `notes`, and `batchIdentifier` fields available
 4. "Upload & Analyze" submits `POST /api/uploads` as `multipart/form-data`
 5. On success, immediately fires `POST /api/uploads/:id/analyze` (fire-and-forget — does not wait)
 6. React Query cache is invalidated for summary and list queries
@@ -928,8 +1036,20 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
 5. **Screen Capture date row** above the image:
    - Shows the LLM-extracted `upload.capturedAt` when available, with an inline pencil to edit
    - Shows "Enter date" when not — opens a `datetime-local` input pre-filled with the current date. Save calls `PATCH /api/uploads/:id/captured-at`.
-6. **Newer / Older navigation** at the top of the page walks through the upload list (newest first) without returning to the History page. Shows "N of M" position indicator; disabled at the ends.
-7. **Delete button** (trash icon next to the status badges) opens a confirmation dialog. Confirming calls `DELETE /api/uploads/:id`, which removes the upload, all child records, and the stored file (best-effort), then redirects to `/history`.
+6. **Batch identifier row** with an inline edit: set or clear the tag via `PATCH /api/uploads/:id/batch-identifier` (empty input clears it).
+7. **Newer / Older navigation** at the top of the page walks through the upload list (newest first) without returning to the History page. Shows "N of M" position indicator; disabled at the ends.
+8. **Delete button** (trash icon next to the status badges) opens a confirmation dialog. Confirming calls `DELETE /api/uploads/:id`, which removes the upload, all child records, and the stored file (best-effort), then redirects to `/history`.
+
+### History page
+
+- Lists uploads newest-first, **20 per page**, with Previous/Next buttons and a "Showing X to Y of N" indicator
+- **Classification filter chips** above the table (built from the `GET /api/uploads/summary` counts): "All" plus one chip per classification, each showing its count. Selecting a chip filters the list via the `classification` query parameter and resets to page 1
+- Clicking a row navigates to the upload's Detail page
+
+### Settings page
+
+- **Analysis model picker** — a select listing the four supported Claude models (Opus 4.8 default, Sonnet 5, Sonnet 4.6, Haiku 4.5) with short hints; saving calls `PUT /api/settings`
+- **Documentation viewer** — lists the in-repo Markdown docs from `GET /api/docs` and renders the selected document (fetched via `GET /api/doc`) in a dialog, so the docs shown always match the deployed code
 
 ### Image rendering
 
@@ -987,7 +1107,7 @@ psql "$DATABASE_URL" -c "SELECT 1"
 {"level":"warn","msg":"Anthropic AI integration env vars missing; returning unknown result"}
 ```
 
-**Fix**: Set both `AI_INTEGRATIONS_ANTHROPIC_API_KEY` and `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` in your environment.
+**Fix**: Set `AI_INTEGRATIONS_ANTHROPIC_API_KEY` in your environment. (`AI_INTEGRATIONS_ANTHROPIC_BASE_URL` is optional — only needed for proxies or enterprise gateways.)
 
 ---
 
@@ -1104,7 +1224,7 @@ BASE_PATH=/
 pnpm --filter @workspace/db run push
 ```
 
-This creates all 12 tables. Run again any time `lib/db/src/schema/uploads.ts` changes.
+This creates all 13 tables. Run again any time `lib/db/src/schema/uploads.ts` changes.
 
 **5. Start the API server** (Terminal 1)
 
@@ -1252,6 +1372,7 @@ Existing uploads stored with `local://` paths will break if the server switches 
 - [ ] `GET /api/healthz` returns `200 OK`
 - [ ] CORS restricted to production frontend origin
 - [ ] Log level set appropriately (`info` or `warn`)
+- [ ] (Optional) Airtable sync: `AIRTABLE_SYNC_ENABLED=true` plus the `AIRTABLE_*` credentials and table vars — see [§15](#15-airtable-sync). Leave unset to keep sync off.
 
 ---
 
