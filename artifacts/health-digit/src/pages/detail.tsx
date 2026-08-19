@@ -74,6 +74,7 @@ export default function DetailPage() {
 
   const { data, isLoading, error } = useGetUpload(id, {
     query: {
+      queryKey: getGetUploadQueryKey(id),
       enabled: !!id,
       refetchInterval: (query) => {
         const status = query.state.data?.upload?.status;
@@ -545,6 +546,12 @@ export default function DetailPage() {
                             </span>
                             {event.unit && <span className="text-sm font-medium text-muted-foreground">{event.unit}</span>}
                           </div>
+                          {isBp && event.heartRate != null && (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                              <HeartPulse className="w-3.5 h-3.5" />
+                              {event.heartRate} bpm
+                            </div>
+                          )}
                           {event.eventTime && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
                               <Clock className="w-3 h-3" />

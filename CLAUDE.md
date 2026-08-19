@@ -126,6 +126,9 @@ pnpm --filter @workspace/api-spec run codegen
 
 ## Environment variables
 
+**Where keys live and how to rotate them: [docs/SECRETS.md](docs/SECRETS.md).**
+Secrets go in `.claude/settings.local.json` (untracked) or the Render dashboard — never in `.claude/settings.json`, which is tracked in git. The api-server has no dotenv loader; the shell that launches it must already have these variables exported (Claude Code injects its settings `env` block into session shells; a plain terminal does not).
+
 ### Backend (required)
 
 | Variable | Description |

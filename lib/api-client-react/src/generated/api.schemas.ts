@@ -113,6 +113,8 @@ export interface Event {
   /** @nullable */
   diastolic?: number | null;
   /** @nullable */
+  heartRate?: number | null;
+  /** @nullable */
   notes?: string | null;
   createdAt: string;
 }

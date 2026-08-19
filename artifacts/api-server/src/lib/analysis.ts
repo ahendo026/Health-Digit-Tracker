@@ -44,6 +44,7 @@ export interface AnalysisResult {
       unit?: string;
       systolic?: number;
       diastolic?: number;
+      heartRate?: number;
       notes?: string;
     }>;
     meals?: Array<{
@@ -94,7 +95,7 @@ function buildSystemPrompt(nowIso: string, todayDate: string): string {
   "summary": "<one or two sentence human-readable summary of what's in the image>",
   "capturedAt": "<ISO datetime string representing when the screenshot was taken — see capturedAt rules below>",
   "data": {
-    "events": [ { "eventType": string, "eventTime"?: ISO string, "value"?: number, "unit"?: string, "systolic"?: number, "diastolic"?: number, "notes"?: string } ],
+    "events": [ { "eventType": string, "eventTime"?: ISO string, "value"?: number, "unit"?: string, "systolic"?: number, "diastolic"?: number, "heartRate"?: number, "notes"?: string } ],
     "meals":  [ { "name"?: string, "mealTime"?: ISO string, "calories"?: number, "protein"?: number, "carbs"?: number, "fat"?: number, "fiber"?: number, "mealType"?: string, "foods"?: string, "notes"?: string } ],
     "workouts": [ { "workoutType"?: string, "workoutTime"?: ISO string, "duration"?: number (minutes), "averageHeartRate"?: number, "maxHeartRate"?: number, "calories"?: number, "distance"?: number (km), "pace"?: number, "heartRateZones"?: { "zone1"?: number, "zone2"?: number, "zone3"?: number, "zone4"?: number, "zone5"?: number }, "notes"?: string } ]
   }
@@ -106,7 +107,8 @@ Context for this request:
 
 Rules:
 - Only include the array(s) relevant to the classification. For glucose/BP/weight use "events". For meals use "meals". For workouts use "workouts".
-- For blood pressure events: set "eventType" to "blood_pressure_reading" and populate "systolic" and "diastolic" (do not set "value").
+- For blood pressure events: set "eventType" to "blood_pressure_reading" and populate "systolic" and "diastolic" (do not set "value"). If the device also shows a pulse/heart-rate reading (often labeled "PULSE", "PUL", "P", "HR", or a heart icon), put that number in "heartRate" — do not bury the pulse in "notes".
+- Blood pressure device flags: many BP monitors show a HIGH / hypertension indicator (an arrow, colored bar, "HI", or highlighted segment). This indicator refers to the BLOOD PRESSURE reading, not the pulse. When such an indicator is visible, determine which metric it refers to from the display layout (which number the marker sits next to) and from standard thresholds: systolic is elevated at >= 130 mmHg, diastolic at >= 85 mmHg. Name that metric explicitly in "summary" and "notes" (e.g. "device flagged the diastolic reading of 97 as high"). NEVER describe the heart rate/pulse as high or flagged unless the pulse value itself is elevated (resting pulse > 100 bpm); a normal pulse (roughly 60-100 bpm) must never be called high.
 - For glucose: set "eventType" to "glucose_reading", "value" to the reading, "unit" to mg/dL or mmol/L.
 - For weight: set "eventType" to "weight_reading", "value" to the weight, "unit" to kg or lb.
 - For "capturedAt" (the moment the screenshot was taken) use this priority order:

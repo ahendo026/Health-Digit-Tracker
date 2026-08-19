@@ -401,7 +401,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
       .values({
         uploadId: params.data.id,
         modelName: model,
-        promptVersion: "1.1.0",
+        promptVersion: "1.2.0",
         rawOutput: analysisResult as unknown as Record<string, unknown>,
         classification: analysisResult.classification,
         confidence: analysisResult.confidence,
@@ -420,6 +420,7 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
           unit: event.unit ?? null,
           systolic: event.systolic ?? null,
           diastolic: event.diastolic ?? null,
+          heartRate: event.heartRate ?? null,
           notes: event.notes ?? null,
         });
       }

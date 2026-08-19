@@ -283,7 +283,7 @@ interface AnalysisResult {
   confidence: number        // 0.0 – 1.0
   summary: string
   data: {
-    events?:   Array<{ eventType, eventTime?, value?, unit?, systolic?, diastolic?, notes? }>
+    events?:   Array<{ eventType, eventTime?, value?, unit?, systolic?, diastolic?, heartRate?, notes? }>
     meals?:    Array<{ name?, mealTime?, calories?, protein?, carbs?, fat?, fiber?, mealType?, foods?, notes? }>
     workouts?: Array<{ workoutType?, workoutTime?, duration?, averageHeartRate?, maxHeartRate?,
                        calories?, distance?, pace?, heartRateZones?, notes? }>
@@ -541,7 +541,7 @@ Trigger AI analysis for an upload. Sets `status` to `analyzing`, calls the Claud
   "id": 7,
   "uploadId": 42,
   "modelName": "claude-opus-4-8",
-  "promptVersion": "1.1.0",
+  "promptVersion": "1.2.0",
   "rawOutput": { ...full LLM response },
   "classification": "blood_pressure_reading",
   "confidence": 0.99,
@@ -833,7 +833,7 @@ The prompt instructs the model to:
 3. Return **only JSON** — no prose, no markdown fences
 
 Key per-classification rules:
-- **blood_pressure_reading**: use `events`, set `eventType: "blood_pressure_reading"`, populate `systolic` and `diastolic`, do not set `value`
+- **blood_pressure_reading**: use `events`, set `eventType: "blood_pressure_reading"`, populate `systolic` and `diastolic` (and `heartRate` when the device shows a pulse), do not set `value`. A device HIGH/hypertension indicator must be attributed to the specific BP metric it refers to (systolic ≥ 130 / diastolic ≥ 85 mmHg) — never to a normal pulse
 - **glucose_reading**: use `events`, set `eventType: "glucose_reading"`, `value` = reading, `unit` = `mg/dL` or `mmol/L`
 - **weight_reading**: use `events`, set `eventType: "weight_reading"`, `value` = weight, `unit` = `kg` or `lb`
 - **meal_event**: use `meals` only
@@ -848,7 +848,7 @@ The prompt also asks for **`capturedAt`** — the date/time visible in the scree
 {
   "classification": "blood_pressure_reading",
   "confidence": 0.99,
-  "summary": "An Omron blood pressure monitor displaying 129/87 mmHg at 7:00 AM, flagged HIGH.",
+  "summary": "An Omron blood pressure monitor displaying 129/87 mmHg with a pulse of 80 bpm at 7:00 AM; the device flagged the blood pressure as high.",
   "capturedAt": "2026-01-28T07:00:00.000Z",
   "data": {
     "events": [
@@ -857,7 +857,8 @@ The prompt also asks for **`capturedAt`** — the date/time visible in the scree
         "eventTime": "2026-01-28T07:00:00.000Z",
         "systolic": 129,
         "diastolic": 87,
-        "notes": "Pulse: 80 bpm. Flagged as HIGH by device."
+        "heartRate": 80,
+        "notes": "Device flagged the reading as high (diastolic 87 mmHg is above the 85 mmHg threshold)."
       }
     ]
   }
@@ -959,6 +960,7 @@ Simple key/value store for global app settings.
 | `unit` | text | `mg/dL`, `mmol/L`, `kg`, `lb` |
 | `systolic` | integer | Blood pressure only |
 | `diastolic` | integer | Blood pressure only |
+| `heart_rate` | integer | Blood pressure only — pulse shown on the monitor |
 | `notes` | text | |
 | `created_at` | timestamptz | |
 

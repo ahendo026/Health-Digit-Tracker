@@ -535,6 +535,8 @@ components:
           type: ["integer", "null"]
         diastolic:
           type: ["integer", "null"]
+        heartRate:
+          type: ["integer", "null"]
         notes:
           type: ["string", "null"]
         createdAt:

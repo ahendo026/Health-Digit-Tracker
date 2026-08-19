@@ -60,6 +60,7 @@ export const eventsTable = pgTable("events", {
   unit: text("unit"),
   systolic: integer("systolic"),
   diastolic: integer("diastolic"),
+  heartRate: integer("heart_rate"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

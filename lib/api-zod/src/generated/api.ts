@@ -106,6 +106,7 @@ export const GetUploadResponse = zod.object({
       unit: zod.string().nullish(),
       systolic: zod.number().nullish(),
       diastolic: zod.number().nullish(),
+      heartRate: zod.number().nullish(),
       notes: zod.string().nullish(),
       createdAt: zod.coerce.date(),
     }),

@@ -47,3 +47,14 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Secrets — see docs/SECRETS.md. Never commit env files or per-machine agent settings.
+.env
+.env.*
+**/.env
+**/.env.*
+.claude/settings.local.json
+.codex/
+
+# Local dev upload storage (health screenshots) — never commit
+artifacts/api-server/local_uploads/
