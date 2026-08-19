@@ -141,10 +141,18 @@ async function main(): Promise<void> {
   ] as const;
 
   for (const t of childTables) {
+    // Also gate on the row's own createdAt: a post-deploy re-analysis of an
+    // old upload writes CORRECT child rows, which must not be shifted again.
     const rows = await db
       .select()
       .from(t.table)
-      .where(and(inArray(t.table.uploadId, uploadIds), isNotNull(t.col)));
+      .where(
+        and(
+          inArray(t.table.uploadId, uploadIds),
+          isNotNull(t.col),
+          lt(t.table.createdAt, BEFORE)
+        )
+      );
     for (const row of rows) {
       const current = (row as Record<string, unknown>)[
         t.field === "event_time" ? "eventTime" : t.field === "meal_time" ? "mealTime" : "workoutTime"
