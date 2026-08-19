@@ -136,6 +136,7 @@ Two modes determined at API server startup:
 | Input | Base64-encoded image (JPEG / PNG / GIF / WebP) |
 | Output | Structured JSON (classification, confidence, summary, extracted data) |
 | Max tokens | 8,192 |
+| Timezone | The model emits wall-clock times exactly as shown in the image (no offset); the server converts them to UTC instants using the user's IANA timezone — Settings override > device zone sent with the request > zone stored on the upload > `America/New_York` |
 | Auth | `AI_INTEGRATIONS_ANTHROPIC_API_KEY` + optional `AI_INTEGRATIONS_ANTHROPIC_BASE_URL` |
 
 If the API key is absent, analysis returns `classification: "unknown"` with a warning log and no API call is made.
@@ -154,6 +155,7 @@ lib/
 tools/
   bench/                   ← standalone accuracy bench: ground-truth labeler + harness (see tools/bench/README.md)
 render.yaml                ← two-service Render blueprint (API + static frontend)
+scripts/                   @workspace/scripts      ← one-off maintenance scripts (tsx), e.g. backfill-timezone
 scripts/refresh-portproxy.ps1   ← Windows helper for WSL + Tailscale dev setups
 ```
 
@@ -170,7 +172,8 @@ Root `package.json` exposes `dev:api` and `dev:frontend` convenience scripts tha
 ```
 Step 1 — User selects a file in the browser
   Frontend: POST /api/uploads  (multipart/form-data)
-  Fields: file (binary), sourceApp? (string), notes? (string), batchIdentifier? (string)
+  Fields: file (binary), sourceApp? (string), notes? (string), batchIdentifier? (string),
+          timezone? (device IANA zone from getBrowserTimeZone())
 
 Step 2 — API server receives the file via multer (memory storage)
   [Local dev]  Write buffer to local_uploads/<uuid>.<ext>
@@ -178,16 +181,17 @@ Step 2 — API server receives the file via multer (memory storage)
   [Production] PUT buffer to GCS via presigned URL
                Store filePath = "/objects/<uuid>"
   INSERT INTO uploads (filePath, originalFilename, mimeType, fileSize,
-                       sourceApp, notes, status='pending')
+                       sourceApp, notes, timezone, status='pending')
   Response: { id, status: "pending", ... }
 
 Step 3 — Frontend immediately fires POST /api/uploads/:id/analyze
-  (fire-and-forget; user is redirected to detail page)
+  Body: { timezone } (the device zone; fire-and-forget; user is redirected to detail page)
 
 Step 4 — API server starts analysis
   UPDATE uploads SET status='analyzing'
-  Read the configured model from app_settings (key 'analysis_model')
-  Call analyzeScreenshot(filePath, model)
+  Read the configured model + timezone from app_settings ('analysis_model', 'timezone')
+  Resolve effective zone: Settings override > body.timezone > uploads.timezone > America/New_York
+  Call analyzeScreenshot(filePath, model, effectiveTz)
 
 Step 5 — analyzeScreenshot() loads the image
   [local://]   fs.readFile(resolveLocalPath(filePath))
@@ -195,18 +199,20 @@ Step 5 — analyzeScreenshot() loads the image
   Base64-encode the buffer
 
 Step 6 — Send to the configured Claude model
-  System prompt: classification rules + JSON schema
+  System prompt: classification rules + JSON schema + user's local now/today + timezone
   User message: base64 image + "Analyze and return JSON"
-  Model returns JSON string
+  Model returns JSON string (datetimes as local wall-clock, no offset)
 
 Step 7 — Parse and normalize LLM response
   extractJson(): raw parse → code-fence extraction → brace scan
   normalizeResult(): validate classification, clamp confidence 0–1
 
 Step 8 — Persist results
+  wallClockToInstant() converts capturedAt/eventTime/mealTime/workoutTime → UTC instants
   INSERT INTO llm_runs (rawOutput JSONB, classification, confidence, summary)
   INSERT INTO events / meals / workouts (depending on classification)
-  UPDATE uploads SET status='analyzed', classification, confidence, summary
+  UPDATE uploads SET status='analyzed', classification, confidence, summary,
+                     capturedAt, timezone=effectiveTz
 
 Step 9 — Frontend polls /api/uploads/:id every 2 seconds
   While status is 'pending' or 'analyzing', polling continues
@@ -243,9 +249,10 @@ Display: resolveUploadImageUrl("local://local_uploads/abc-123.jpg")
 **Purpose**: Handles the full lifecycle of an upload — creation, analysis trigger, retrieval, deletion, manual date correction, batch tagging, and review submission.
 
 **Responsibilities**:
-- Accept multipart file uploads (with optional `sourceApp`, `notes`, `batchIdentifier`) and write to local disk or GCS
+- Accept multipart file uploads (with optional `sourceApp`, `notes`, `batchIdentifier`, `timezone`) and write to local disk or GCS
 - Insert and update `uploads` table rows (including `captured_at` from analysis or `PATCH /captured-at`, and `batch_identifier` via `PATCH /batch-identifier`)
-- Delegate LLM analysis to `analyzeScreenshot()`
+- Resolve the effective timezone for each analysis (Settings override > request body > `uploads.timezone` > `DEFAULT_TIMEZONE`) and delegate LLM analysis to `analyzeScreenshot()`
+- Convert model-emitted wall-clock times (`capturedAt`, `eventTime`, `mealTime`, `workoutTime`) to UTC instants via `wallClockToInstant()` from `lib/timezone.ts`
 - Persist normalized data into `events`, `meals`, `workouts` (all scoped to `upload_id`; integer fields rounded via `Math.round()`)
 - Cascade-delete children + stored file on `DELETE /api/uploads/:id`
 - Accept manual review submissions (`POST /reviews`)
@@ -262,7 +269,7 @@ Display: resolveUploadImageUrl("local://local_uploads/abc-123.jpg")
 
 ### Analysis Service — `artifacts/api-server/src/lib/analysis.ts`
 
-**Purpose**: Accepts a `filePath` and a model id, loads the image, calls the Claude vision model, and returns a typed `AnalysisResult`. Exports `ANALYSIS_MODELS` (the four pickable models), `DEFAULT_ANALYSIS_MODEL` (`claude-opus-4-8`), and the `isAnalysisModel()` guard.
+**Purpose**: Accepts a `filePath`, a model id, and an IANA timezone, loads the image, calls the Claude vision model, and returns a typed `AnalysisResult`. The prompt receives the user's local now/today (computed via `zonedNowStrings()` from `lib/timezone.ts`) and instructs the model to emit all datetimes as LOCAL wall-clock strings with no offset — conversion to UTC happens in the uploads route. Exports `ANALYSIS_MODELS` (the four pickable models), `DEFAULT_ANALYSIS_MODEL` (`claude-opus-4-8`), and the `isAnalysisModel()` guard.
 
 **Responsibilities**:
 - Detect `local://` vs GCS paths and load the image accordingly
@@ -282,6 +289,7 @@ interface AnalysisResult {
   classification: Classification
   confidence: number        // 0.0 – 1.0
   summary: string
+  capturedAt?: string       // local wall-clock ISO, no offset — converted to UTC by the uploads route
   data: {
     events?:   Array<{ eventType, eventTime?, value?, unit?, systolic?, diastolic?, heartRate?, notes? }>
     meals?:    Array<{ name?, mealTime?, calories?, protein?, carbs?, fat?, fiber?, mealType?, foods?, notes? }>
@@ -291,7 +299,19 @@ interface AnalysisResult {
 }
 ```
 
-**Interactions**: `lib/localStorage.ts`, `lib/objectStorage.ts`, Anthropic SDK, Pino logger.
+**Interactions**: `lib/localStorage.ts`, `lib/objectStorage.ts`, `lib/timezone.ts`, Anthropic SDK, Pino logger.
+
+---
+
+### Timezone Helper — `artifacts/api-server/src/lib/timezone.ts`
+
+**Purpose**: Deterministic conversion between the wall-clock times shown in screenshots and stored UTC instants.
+
+**Exports**:
+- `DEFAULT_TIMEZONE` — `"America/New_York"`, the last-resort fallback zone
+- `isValidTimeZone(tz)` — `Intl.DateTimeFormat` probe; type guard for IANA ids
+- `wallClockToInstant(value, timeZone)` — strips any trailing offset/`Z`, interprets the remainder as wall-clock time in `timeZone` via `date-fns-tz` `fromZonedTime` (DST-safe), returns a `Date` or `null`
+- `zonedNowStrings(timeZone)` — the user's local `nowLocal` / `todayDate` strings for the analysis prompt context block
 
 ---
 
@@ -350,9 +370,9 @@ resolveLocalPath("local://local_uploads/abc.jpg")
 **Purpose**: Read/write global app settings stored in the `app_settings` key/value table.
 
 **Responsibilities**:
-- `GET /api/settings` — return the current `analysisModel` (falls back to `DEFAULT_ANALYSIS_MODEL` when unset)
-- `PUT /api/settings` — validate against `ANALYSIS_MODELS` and upsert the `analysis_model` key
-- Export `getAnalysisModel()`, used by the analyze route to pick the model per run
+- `GET /api/settings` — return the current `analysisModel` (falls back to `DEFAULT_ANALYSIS_MODEL` when unset) and `timezone` (falls back to `"auto"`)
+- `PUT /api/settings` — accept partial updates; validate `analysisModel` against `ANALYSIS_MODELS` and `timezone` as `"auto"` or a valid IANA id; upsert the `analysis_model` / `timezone` keys
+- Export `getAnalysisModel()` and `getConfiguredTimezone()`, used by the analyze route to pick the model and timezone per run
 
 ---
 
@@ -400,6 +420,7 @@ resolveLocalPath("local://local_uploads/abc.jpg")
 
 **Responsibilities**:
 - Analysis-model picker (the four `ANALYSIS_MODELS` options with labels/hints, kept in sync with `analysis.ts`); saves via `PUT /api/settings`
+- Timezone selector — "Auto (use this device's timezone)" (default) or an explicit US zone that overrides the device zone for analysis-time interpretation; saves via `PUT /api/settings`
 - Documentation browser: lists docs from `GET /api/docs` and renders the selected file's Markdown in a dialog (`components/markdown.tsx`)
 
 ---
@@ -420,6 +441,7 @@ Create a new upload record and store the file.
 | `sourceApp` | string | no | Name of the app the screenshot came from |
 | `notes` | string | no | Free-text context |
 | `batchIdentifier` | string | no | Tag grouping related uploads (e.g. a bench-harness run); trimmed, empty → `null` |
+| `timezone` | string | no | IANA timezone of the capturing device (e.g. `America/New_York`); invalid values are stored as `null` |
 
 **Response `201`**:
 ```json
@@ -435,6 +457,7 @@ Create a new upload record and store the file.
   "confidence": null,
   "summary": null,
   "capturedAt": null,
+  "timezone": "America/New_York",
   "status": "pending",
   "notes": null,
   "batchIdentifier": null,
@@ -535,13 +558,15 @@ Pass `null` (or an empty/whitespace string) to clear the tag.
 
 Trigger AI analysis for an upload. Sets `status` to `analyzing`, calls the Claude model configured in Settings (default `claude-opus-4-8`), then updates to `analyzed` or `failed`.
 
+**Request body** (optional, `application/json`): `{ "timezone": "America/New_York" }` — the device's IANA timezone. The effective zone for interpreting times extracted from the image is resolved as: explicit Settings timezone (when not `"auto"`) > this body value > `uploads.timezone` > `America/New_York`. The resolved zone is persisted to `uploads.timezone`. Invalid values are ignored with a logged warning.
+
 **Response `200`** (the `llm_runs` row):
 ```json
 {
   "id": 7,
   "uploadId": 42,
   "modelName": "claude-opus-4-8",
-  "promptVersion": "1.2.0",
+  "promptVersion": "1.3.0",
   "rawOutput": { ...full LLM response },
   "classification": "blood_pressure_reading",
   "confidence": 0.99,
@@ -650,18 +675,20 @@ Request a presigned GCS PUT URL for direct client-side upload (production flow o
 
 Return the current global app settings.
 
-**Response `200`**: `{ "analysisModel": "claude-opus-4-8" }`
+**Response `200`**: `{ "analysisModel": "claude-opus-4-8", "timezone": "auto" }`
 
 ---
 
 ### `PUT /api/settings`
 
-Update the analysis model.
+Update one or both settings; omitted fields are left unchanged.
 
-**Request body**: `{ "analysisModel": "claude-sonnet-5" }` — must be one of `claude-opus-4-8`, `claude-sonnet-5`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
+**Request body**: `{ "analysisModel": "claude-sonnet-5", "timezone": "America/New_York" }`
+- `analysisModel` — must be one of `claude-opus-4-8`, `claude-sonnet-5`, `claude-sonnet-4-6`, `claude-haiku-4-5`
+- `timezone` — `"auto"` (use the device zone sent with each analysis) or a valid IANA timezone id; an explicit zone overrides the device zone
 
-**Response `200`**: the saved settings object
-**Response `400`**: `{ "error": "analysisModel must be one of: ..." }`
+**Response `200`**: the full saved settings object
+**Response `400`**: `{ "error": "analysisModel must be one of: ..." }` or `{ "error": "timezone must be \"auto\" or a valid IANA timezone id" }`
 
 ---
 
@@ -840,7 +867,9 @@ Key per-classification rules:
 - **workout_event**: use `workouts` only (heart rate zones as `{ zone1..zone5 }`)
 - **unknown**: confidence < 0.5, empty `data: {}`
 
-The prompt also asks for **`capturedAt`** — the date/time visible in the screenshot itself (app header, recording timestamp, clock, activity date). Emitted as ISO 8601; omitted when no date is visible. Stored on `uploads.captured_at` so the Detail page can render a "Screen Capture" date distinct from the server-assigned "Uploaded" date. Users can manually enter or override this via `PATCH /api/uploads/:id/captured-at` when the LLM could not extract it.
+The prompt also asks for **`capturedAt`** — the date/time visible in the screenshot itself (phone status-bar clock first, then explicit in-app recording timestamps). Omitted when no date is visible. Stored on `uploads.captured_at` so the Detail page can render a "Screen Capture" date distinct from the server-assigned "Uploaded" date. Users can manually enter or override this via `PATCH /api/uploads/:id/captured-at` when the LLM could not extract it.
+
+**Timezone handling (prompt v1.3.0)**: screenshots show the user's *local wall-clock* time with no zone information, so the prompt's context block provides the user's IANA timezone and *local* now/today (not the UTC server clock), and requires every datetime field (`capturedAt`, `eventTime`, `mealTime`, `workoutTime`) to be emitted as `YYYY-MM-DDTHH:mm:ss` with **no offset and no `Z`**. The uploads route then converts each value deterministically to a UTC instant with `wallClockToInstant()` (`lib/timezone.ts`, backed by `date-fns-tz` — DST-safe; any offset the model appends anyway is stripped). The effective zone is: Settings override > device zone from the request > `uploads.timezone` > `DEFAULT_TIMEZONE` (`America/New_York`). Computing today's date in the local zone also prevents evening screenshots (local evening = next day UTC) from being dated tomorrow. Rows analyzed before v1.3.0 stored wall-clock-as-UTC; they were corrected by the one-off `scripts/src/backfill-timezone.ts` (dry-run by default, `--apply` to write).
 
 ### Expected response shape
 
@@ -849,12 +878,12 @@ The prompt also asks for **`capturedAt`** — the date/time visible in the scree
   "classification": "blood_pressure_reading",
   "confidence": 0.99,
   "summary": "An Omron blood pressure monitor displaying 129/87 mmHg with a pulse of 80 bpm at 7:00 AM; the device flagged the blood pressure as high.",
-  "capturedAt": "2026-01-28T07:00:00.000Z",
+  "capturedAt": "2026-01-28T07:00:00",
   "data": {
     "events": [
       {
         "eventType": "blood_pressure_reading",
-        "eventTime": "2026-01-28T07:00:00.000Z",
+        "eventTime": "2026-01-28T07:00:00",
         "systolic": 129,
         "diastolic": 87,
         "heartRate": 80,
@@ -864,6 +893,8 @@ The prompt also asks for **`capturedAt`** — the date/time visible in the scree
   }
 }
 ```
+
+Note the datetime values are local wall-clock with no offset — the server converts them to UTC instants using the resolved timezone before storing.
 
 ### JSON parsing strategy
 
@@ -916,7 +947,8 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
 | `classification` | text | Set after analysis |
 | `confidence` | real | 0.0 – 1.0; set after analysis |
 | `summary` | text | Human-readable AI summary |
-| `captured_at` | timestamptz | Date/time extracted from the image by the LLM, or manually set via `PATCH /api/uploads/:id/captured-at`. Independent of `created_at`. |
+| `captured_at` | timestamptz | Date/time extracted from the image by the LLM (local wall-clock converted to a UTC instant via the upload's timezone), or manually set via `PATCH /api/uploads/:id/captured-at`. Independent of `created_at`. |
+| `timezone` | text | IANA timezone used to interpret wall-clock times for this upload. Seeded from the upload form's `timezone` field; overwritten with the resolved effective zone on each analysis. Nullable. |
 | `status` | text | `pending` → `analyzing` → `analyzed` \| `failed` |
 | `notes` | text | User-provided context |
 | `batch_identifier` | text | Optional tag grouping related uploads (set at upload time or via `PATCH /api/uploads/:id/batch-identifier`); used by the bench harness for bulk cleanup |
@@ -928,8 +960,8 @@ Simple key/value store for global app settings.
 
 | Column | Type | Notes |
 |---|---|---|
-| `key` | text PK | e.g. `analysis_model` |
-| `value` | text NOT NULL | e.g. `claude-opus-4-8` |
+| `key` | text PK | `analysis_model` (the Claude model) or `timezone` (`"auto"` or an IANA id) |
+| `value` | text NOT NULL | e.g. `claude-opus-4-8`, `auto`, `America/New_York` |
 | `updated_at` | timestamptz | Auto-updated on write |
 
 ### `llm_runs`
@@ -1020,8 +1052,8 @@ Simple key/value store for global app settings.
 1. User visits `/` (Upload page)
 2. A mode toggle picks between **Upload image** (file picker / drag-and-drop) and **Take photo** (device camera via `capture="environment"` attribute). Both toggles stay visible at all times.
 3. Optional `sourceApp`, `notes`, and `batchIdentifier` fields available
-4. "Upload & Analyze" submits `POST /api/uploads` as `multipart/form-data`
-5. On success, immediately fires `POST /api/uploads/:id/analyze` (fire-and-forget — does not wait)
+4. "Upload & Analyze" submits `POST /api/uploads` as `multipart/form-data`, including the browser's IANA timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone` via `getBrowserTimeZone()` in `lib/utils.ts`)
+5. On success, immediately fires `POST /api/uploads/:id/analyze` with the same timezone in the JSON body (fire-and-forget — does not wait)
 6. React Query cache is invalidated for summary and list queries
 7. User is redirected to `/uploads/<id>` immediately
 
@@ -1034,7 +1066,7 @@ Simple key/value store for global app settings.
    - Classification badge + confidence % appear in the header
    - AI-generated summary is rendered
    - Extracted data renders in typed cards (events / meals / workouts) — **filtered by `upload_id`** so only this upload's data is shown
-4. On `status: "failed"`: a red banner with a "Re-analyze" button appears
+4. On `status: "failed"`: a red banner with a "Re-analyze" button appears. Re-analysis sends the browser's timezone, same as the initial analyze call.
 5. **Screen Capture date row** above the image:
    - Shows the LLM-extracted `upload.capturedAt` when available, with an inline pencil to edit
    - Shows "Enter date" when not — opens a `datetime-local` input pre-filled with the current date. Save calls `PATCH /api/uploads/:id/captured-at`.
@@ -1051,6 +1083,7 @@ Simple key/value store for global app settings.
 ### Settings page
 
 - **Analysis model picker** — a select listing the four supported Claude models (Opus 4.8 default, Sonnet 5, Sonnet 4.6, Haiku 4.5) with short hints; saving calls `PUT /api/settings`
+- **Timezone selector** — "Auto — use this device's timezone" (default) or an explicit US zone (Eastern, Central, Mountain, Arizona, Pacific). An explicit zone overrides the device zone when interpreting times read from screenshots. A stored non-listed IANA value still renders as its own option. Saving calls `PUT /api/settings`.
 - **Documentation viewer** — lists the in-repo Markdown docs from `GET /api/docs` and renders the selected document (fetched via `GET /api/doc`) in a dialog, so the docs shown always match the deployed code
 
 ### Image rendering
@@ -1305,6 +1338,9 @@ pnpm --filter @workspace/db run push
 
 # Regenerate API types from OpenAPI
 pnpm --filter @workspace/api-spec run codegen
+
+# One-off backfill for pre-v1.3.0 timezone-shifted timestamps (dry-run; add --apply to write)
+pnpm --filter @workspace/scripts run backfill-timezone -- --before=<deploy-iso> [--zone=America/New_York] [--apply]
 ```
 
 ---
