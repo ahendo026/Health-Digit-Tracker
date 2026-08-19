@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Cpu, FileText, BookOpen } from "lucide-react";
+import { Loader2, Cpu, FileText, BookOpen, Globe } from "lucide-react";
 import {
   useGetSettings,
   useUpdateSettings,
@@ -36,6 +36,15 @@ const MODEL_OPTIONS: { id: SettingsAnalysisModel; label: string; hint: string }[
   { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", hint: "Fastest and cheapest" },
 ];
 
+const TIMEZONE_OPTIONS: { id: string; label: string }[] = [
+  { id: "auto", label: "Auto — use this device's timezone" },
+  { id: "America/New_York", label: "US Eastern (New York)" },
+  { id: "America/Chicago", label: "US Central (Chicago)" },
+  { id: "America/Denver", label: "US Mountain (Denver)" },
+  { id: "America/Phoenix", label: "US Arizona (Phoenix)" },
+  { id: "America/Los_Angeles", label: "US Pacific (Los Angeles)" },
+];
+
 // Mounted only while a doc is open, so useGetDoc runs (and refetches) exactly
 // when a document is selected — no need for a disabled-query options object.
 function DocViewer({ name }: { name: string }) {
@@ -60,16 +69,21 @@ export default function SettingsPage() {
   const updateSettings = useUpdateSettings();
 
   const [model, setModel] = useState<SettingsAnalysisModel | undefined>(undefined);
+  const [timezone, setTimezone] = useState<string | undefined>(undefined);
   const [openDoc, setOpenDoc] = useState<string | null>(null);
 
   const { data: docList } = useListDocs();
 
-  // Seed the local selection once the current setting loads.
+  // Seed the local selections once the current settings load.
   useEffect(() => {
     if (settings?.analysisModel) setModel(settings.analysisModel);
   }, [settings?.analysisModel]);
+  useEffect(() => {
+    if (settings?.timezone) setTimezone(settings.timezone);
+  }, [settings?.timezone]);
 
   const dirty = model !== undefined && model !== settings?.analysisModel;
+  const timezoneDirty = timezone !== undefined && timezone !== settings?.timezone;
 
   const handleSave = async () => {
     if (!model) return;
@@ -77,6 +91,17 @@ export default function SettingsPage() {
       await updateSettings.mutateAsync({ data: { analysisModel: model } });
       await queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
       toast({ title: "Settings saved", description: "New analyses will use this model." });
+    } catch {
+      toast({ title: "Could not save settings", variant: "destructive" });
+    }
+  };
+
+  const handleSaveTimezone = async () => {
+    if (!timezone) return;
+    try {
+      await updateSettings.mutateAsync({ data: { timezone } });
+      await queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+      toast({ title: "Settings saved", description: "New analyses will use this timezone." });
     } catch {
       toast({ title: "Could not save settings", variant: "destructive" });
     }
@@ -121,6 +146,49 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground font-mono">{model}</p>
                 <div className="flex justify-end">
                   <Button onClick={handleSave} disabled={!dirty || updateSettings.isPending}>
+                    {updateSettings.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Save
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="w-4 h-4 text-primary" /> Timezone
+            </CardTitle>
+            <CardDescription>
+              The timezone used to interpret dates and times read from screenshots. "Auto" uses the
+              timezone of whichever device triggers the analysis; picking a zone overrides it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading current setting…
+              </div>
+            ) : (
+              <>
+                <Select value={timezone} onValueChange={(v) => setTimezone(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a timezone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                    {timezone && !TIMEZONE_OPTIONS.some((o) => o.id === timezone) && (
+                      <SelectItem value={timezone}>{timezone}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <div className="flex justify-end">
+                  <Button onClick={handleSaveTimezone} disabled={!timezoneDirty || updateSettings.isPending}>
                     {updateSettings.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                     Save
                   </Button>

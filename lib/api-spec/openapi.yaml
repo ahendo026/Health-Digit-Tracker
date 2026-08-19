@@ -177,6 +177,16 @@ paths:
           required: true
           schema:
             type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                timezone:
+                  type: string
+                  description: IANA timezone of the capturing device (e.g. America/New_York), used to interpret wall-clock times extracted from the screenshot
       responses:
         "200":
           description: Analysis complete
@@ -351,8 +361,12 @@ components:
             - claude-sonnet-5
             - claude-sonnet-4-6
             - claude-haiku-4-5
+        timezone:
+          type: string
+          description: '"auto" (use the device timezone sent with each analysis) or an IANA timezone id that overrides it'
       required:
         - analysisModel
+        - timezone
 
     UpdateSettingsBody:
       type: object
@@ -364,8 +378,9 @@ components:
             - claude-sonnet-5
             - claude-sonnet-4-6
             - claude-haiku-4-5
-      required:
-        - analysisModel
+        timezone:
+          type: string
+          description: '"auto" or an IANA timezone id'
 
     DocInfo:
       type: object
@@ -425,6 +440,9 @@ components:
         capturedAt:
           type: ["string", "null"]
           format: date-time
+        timezone:
+          type: ["string", "null"]
+          description: IANA timezone used to interpret wall-clock times for this upload
         status:
           type: string
         notes:

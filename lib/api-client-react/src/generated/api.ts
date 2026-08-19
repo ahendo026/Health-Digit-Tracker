@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AnalyzeUploadBody,
   CreateReviewBody,
   DocContent,
   DocList,
@@ -570,11 +571,14 @@ export const getAnalyzeUploadUrl = (id: number) => {
 
 export const analyzeUpload = async (
   id: number,
+  analyzeUploadBody?: AnalyzeUploadBody,
   options?: RequestInit,
 ): Promise<LlmRun> => {
   return customFetch<LlmRun>(getAnalyzeUploadUrl(id), {
     ...options,
     method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeUploadBody),
   });
 };
 
@@ -585,14 +589,14 @@ export const getAnalyzeUploadMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof analyzeUpload>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<AnalyzeUploadBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof analyzeUpload>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<AnalyzeUploadBody> },
   TContext
 > => {
   const mutationKey = ["analyzeUpload"];
@@ -606,11 +610,11 @@ export const getAnalyzeUploadMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof analyzeUpload>>,
-    { id: number }
+    { id: number; data: BodyType<AnalyzeUploadBody> }
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, data } = props ?? {};
 
-    return analyzeUpload(id, requestOptions);
+    return analyzeUpload(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -619,7 +623,7 @@ export const getAnalyzeUploadMutationOptions = <
 export type AnalyzeUploadMutationResult = NonNullable<
   Awaited<ReturnType<typeof analyzeUpload>>
 >;
-
+export type AnalyzeUploadMutationBody = BodyType<AnalyzeUploadBody>;
 export type AnalyzeUploadMutationError = ErrorType<void>;
 
 /**
@@ -632,14 +636,14 @@ export const useAnalyzeUpload = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof analyzeUpload>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<AnalyzeUploadBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof analyzeUpload>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<AnalyzeUploadBody> },
   TContext
 > => {
   return useMutation(getAnalyzeUploadMutationOptions(options));

@@ -23,7 +23,8 @@ import {
   ListOutcomesQueryParams,
 } from "@workspace/api-zod";
 import { analyzeScreenshot, type AnalysisModel } from "../lib/analysis";
-import { getAnalysisModel } from "./settings";
+import { DEFAULT_TIMEZONE, isValidTimeZone, wallClockToInstant } from "../lib/timezone";
+import { getAnalysisModel, getConfiguredTimezone } from "./settings";
 import { logger } from "../lib/logger";
 import { enqueue as enqueueAirtableSync } from "../lib/airtable";
 
@@ -141,10 +142,11 @@ router.post("/uploads", upload.single("file"), async (req, res): Promise<void> =
     return;
   }
 
-  const { notes, sourceApp, batchIdentifier } = req.body as {
+  const { notes, sourceApp, batchIdentifier, timezone } = req.body as {
     notes?: string;
     sourceApp?: string;
     batchIdentifier?: string;
+    timezone?: string;
   };
 
   try {
@@ -191,6 +193,7 @@ router.post("/uploads", upload.single("file"), async (req, res): Promise<void> =
         notes: notes ?? null,
         sourceApp: sourceApp ?? null,
         batchIdentifier: batchIdentifier?.trim() ? batchIdentifier.trim() : null,
+        timezone: isValidTimeZone(timezone) ? timezone : null,
       })
       .returning();
 
@@ -388,20 +391,38 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
 
   try {
     const model = await getAnalysisModel();
-    const analysisResult = await analyzeScreenshot(uploadRecord.filePath, model as AnalysisModel);
 
-    const safeDate = (v: string | undefined | null): Date | null => {
-      if (!v) return null;
-      const d = new Date(v);
-      return isNaN(d.getTime()) ? null : d;
-    };
+    // Effective timezone: explicit Settings override > device zone from the
+    // request > zone persisted on the upload row > default.
+    const { timezone: bodyTimezone } = (req.body ?? {}) as { timezone?: string };
+    const settingsTimezone = await getConfiguredTimezone();
+    const effectiveTz =
+      settingsTimezone !== "auto" && isValidTimeZone(settingsTimezone)
+        ? settingsTimezone
+        : isValidTimeZone(bodyTimezone)
+          ? bodyTimezone
+          : isValidTimeZone(uploadRecord.timezone)
+            ? uploadRecord.timezone
+            : DEFAULT_TIMEZONE;
+    if (bodyTimezone && !isValidTimeZone(bodyTimezone)) {
+      req.log.warn({ bodyTimezone }, "Ignoring invalid timezone in analyze request");
+    }
+
+    const analysisResult = await analyzeScreenshot(
+      uploadRecord.filePath,
+      model as AnalysisModel,
+      effectiveTz
+    );
+
+    const safeDate = (v: string | undefined | null): Date | null =>
+      wallClockToInstant(v, effectiveTz);
 
     const [llmRun] = await db
       .insert(llmRunsTable)
       .values({
         uploadId: params.data.id,
         modelName: model,
-        promptVersion: "1.2.0",
+        promptVersion: "1.3.0",
         rawOutput: analysisResult as unknown as Record<string, unknown>,
         classification: analysisResult.classification,
         confidence: analysisResult.confidence,
@@ -475,7 +496,8 @@ router.post("/uploads/:id/analyze", async (req, res): Promise<void> => {
         classification: analysisResult.classification,
         confidence: analysisResult.confidence,
         summary: analysisResult.summary,
-        capturedAt: analysisResult.capturedAt ? new Date(analysisResult.capturedAt) : null,
+        capturedAt: wallClockToInstant(analysisResult.capturedAt, effectiveTz),
+        timezone: effectiveTz,
       })
       .where(eq(uploadsTable.id, params.data.id));
 

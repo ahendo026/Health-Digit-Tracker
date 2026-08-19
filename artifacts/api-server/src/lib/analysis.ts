@@ -4,6 +4,7 @@ import path from "path";
 import { ObjectStorageService } from "./objectStorage";
 import { isLocalUri, resolveLocalPath } from "./localStorage";
 import { logger } from "./logger";
+import { DEFAULT_TIMEZONE, zonedNowStrings } from "./timezone";
 
 export type Classification =
   | "glucose_reading"
@@ -74,7 +75,7 @@ export interface AnalysisResult {
   };
 }
 
-function buildSystemPrompt(nowIso: string, todayDate: string): string {
+function buildSystemPrompt(nowLocal: string, todayDate: string, timeZone: string): string {
   return `You are an expert health data extraction assistant. You will be shown a screenshot from a health, fitness, food, or wearable app. Your job is to:
 
 1. Classify the screenshot into exactly one of these categories:
@@ -93,7 +94,7 @@ function buildSystemPrompt(nowIso: string, todayDate: string): string {
   "classification": "<one of the 6 categories above>",
   "confidence": <number between 0 and 1 — your confidence in the classification>,
   "summary": "<one or two sentence human-readable summary of what's in the image>",
-  "capturedAt": "<ISO datetime string representing when the screenshot was taken — see capturedAt rules below>",
+  "capturedAt": "<LOCAL wall-clock ISO datetime, NO timezone offset and NO 'Z' — see capturedAt rules below>",
   "data": {
     "events": [ { "eventType": string, "eventTime"?: ISO string, "value"?: number, "unit"?: string, "systolic"?: number, "diastolic"?: number, "heartRate"?: number, "notes"?: string } ],
     "meals":  [ { "name"?: string, "mealTime"?: ISO string, "calories"?: number, "protein"?: number, "carbs"?: number, "fat"?: number, "fiber"?: number, "mealType"?: string, "foods"?: string, "notes"?: string } ],
@@ -102,10 +103,12 @@ function buildSystemPrompt(nowIso: string, todayDate: string): string {
 }
 
 Context for this request:
-- Current date/time (server clock): ${nowIso}
-- Today's date: ${todayDate}
+- User's IANA timezone: ${timeZone}
+- Current LOCAL date/time for the user: ${nowLocal}
+- Today's LOCAL date: ${todayDate}
 
 Rules:
+- All datetime fields — "capturedAt", "eventTime", "mealTime", "workoutTime" — must be the LOCAL wall-clock time exactly as displayed in the image, formatted YYYY-MM-DDTHH:mm:ss with NO timezone offset and NO 'Z' suffix. Never convert to UTC; the server handles timezone conversion.
 - Only include the array(s) relevant to the classification. For glucose/BP/weight use "events". For meals use "meals". For workouts use "workouts".
 - For blood pressure events: set "eventType" to "blood_pressure_reading" and populate "systolic" and "diastolic" (do not set "value"). If the device also shows a pulse/heart-rate reading (often labeled "PULSE", "PUL", "P", "HR", or a heart icon), put that number in "heartRate" — do not bury the pulse in "notes".
 - Blood pressure device flags: many BP monitors show a HIGH / hypertension indicator (an arrow, colored bar, "HI", or highlighted segment). This indicator refers to the BLOOD PRESSURE reading, not the pulse. When such an indicator is visible, determine which metric it refers to from the display layout (which number the marker sits next to) and from standard thresholds: systolic is elevated at >= 130 mmHg, diastolic at >= 85 mmHg. Name that metric explicitly in "summary" and "notes" (e.g. "device flagged the diastolic reading of 97 as high"). NEVER describe the heart rate/pulse as high or flagged unless the pulse value itself is elevated (resting pulse > 100 bpm); a normal pulse (roughly 60-100 bpm) must never be called high.
@@ -213,7 +216,8 @@ function normalizeResult(raw: unknown): AnalysisResult {
 
 export async function analyzeScreenshot(
   filePath: string,
-  model: AnalysisModel = DEFAULT_ANALYSIS_MODEL
+  model: AnalysisModel = DEFAULT_ANALYSIS_MODEL,
+  timeZone: string = DEFAULT_TIMEZONE
 ): Promise<AnalysisResult> {
   const activeModel: AnalysisModel = isAnalysisModel(model) ? model : DEFAULT_ANALYSIS_MODEL;
   logger.info({ filePath, model: activeModel }, "Running screenshot analysis");
@@ -233,8 +237,8 @@ export async function analyzeScreenshot(
   }
 
   try {
-    const now = new Date();
-    const systemPrompt = buildSystemPrompt(now.toISOString(), now.toISOString().slice(0, 10));
+    const { nowLocal, todayDate } = zonedNowStrings(timeZone);
+    const systemPrompt = buildSystemPrompt(nowLocal, todayDate, timeZone);
     const message = await client.messages.create({
       model: activeModel,
       max_tokens: 8192,

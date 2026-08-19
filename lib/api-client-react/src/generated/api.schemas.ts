@@ -21,6 +21,8 @@ export const SettingsAnalysisModel = {
 
 export interface Settings {
   analysisModel: SettingsAnalysisModel;
+  /** "auto" (use the device timezone sent with each analysis) or an IANA timezone id that overrides it */
+  timezone: string;
 }
 
 export type UpdateSettingsBodyAnalysisModel =
@@ -34,7 +36,9 @@ export const UpdateSettingsBodyAnalysisModel = {
 } as const;
 
 export interface UpdateSettingsBody {
-  analysisModel: UpdateSettingsBodyAnalysisModel;
+  analysisModel?: UpdateSettingsBodyAnalysisModel;
+  /** "auto" or an IANA timezone id */
+  timezone?: string;
 }
 
 export interface DocInfo {
@@ -69,6 +73,11 @@ export interface Upload {
   summary?: string | null;
   /** @nullable */
   capturedAt?: string | null;
+  /**
+   * IANA timezone used to interpret wall-clock times for this upload
+   * @nullable
+   */
+  timezone?: string | null;
   status: string;
   /** @nullable */
   notes?: string | null;
@@ -270,6 +279,11 @@ export type SetUploadCapturedAtBody = {
 export type SetUploadBatchIdentifierBody = {
   /** @nullable */
   batchIdentifier: string | null;
+};
+
+export type AnalyzeUploadBody = {
+  /** IANA timezone of the capturing device (e.g. America/New_York), used to interpret wall-clock times extracted from the screenshot */
+  timezone?: string;
 };
 
 export type GetDocParams = {

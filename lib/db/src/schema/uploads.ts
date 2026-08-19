@@ -23,6 +23,7 @@ export const uploadsTable = pgTable("uploads", {
   confidence: real("confidence"),
   summary: text("summary"),
   capturedAt: timestamp("captured_at", { withTimezone: true }),
+  timezone: text("timezone"),
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
   batchIdentifier: text("batch_identifier"),

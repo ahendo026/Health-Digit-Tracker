@@ -1,6 +1,7 @@
 import { useRoute, Link, useLocation } from "wouter";
 import { useState } from "react";
 import { resolveUploadImageUrl, apiUrl } from "@/lib/api";
+import { getBrowserTimeZone } from "@/lib/utils";
 import { Layout } from "@/components/layout";
 import {
   useGetUpload,
@@ -136,7 +137,8 @@ export default function DetailPage() {
 
   const handleRetry = async () => {
     try {
-      await analyzeUpload.mutateAsync({ id });
+      const timezone = getBrowserTimeZone();
+      await analyzeUpload.mutateAsync({ id, data: timezone ? { timezone } : {} });
       queryClient.invalidateQueries({ queryKey: getGetUploadQueryKey(id) });
       queryClient.invalidateQueries({ queryKey: getGetUploadSummaryQueryKey() });
       queryClient.invalidateQueries({ queryKey: getListUploadsQueryKey() });

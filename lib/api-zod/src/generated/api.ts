@@ -43,6 +43,12 @@ export const ListUploadsResponse = zod.object({
       confidence: zod.number().nullish(),
       summary: zod.string().nullish(),
       capturedAt: zod.coerce.date().nullish(),
+      timezone: zod
+        .string()
+        .nullish()
+        .describe(
+          "IANA timezone used to interpret wall-clock times for this upload",
+        ),
       status: zod.string(),
       notes: zod.string().nullish(),
       batchIdentifier: zod.string().nullish(),
@@ -75,6 +81,12 @@ export const GetUploadResponse = zod.object({
     confidence: zod.number().nullish(),
     summary: zod.string().nullish(),
     capturedAt: zod.coerce.date().nullish(),
+    timezone: zod
+      .string()
+      .nullish()
+      .describe(
+        "IANA timezone used to interpret wall-clock times for this upload",
+      ),
     status: zod.string(),
     notes: zod.string().nullish(),
     batchIdentifier: zod.string().nullish(),
@@ -189,6 +201,12 @@ export const SetUploadCapturedAtResponse = zod.object({
   confidence: zod.number().nullish(),
   summary: zod.string().nullish(),
   capturedAt: zod.coerce.date().nullish(),
+  timezone: zod
+    .string()
+    .nullish()
+    .describe(
+      "IANA timezone used to interpret wall-clock times for this upload",
+    ),
   status: zod.string(),
   notes: zod.string().nullish(),
   batchIdentifier: zod.string().nullish(),
@@ -219,6 +237,12 @@ export const SetUploadBatchIdentifierResponse = zod.object({
   confidence: zod.number().nullish(),
   summary: zod.string().nullish(),
   capturedAt: zod.coerce.date().nullish(),
+  timezone: zod
+    .string()
+    .nullish()
+    .describe(
+      "IANA timezone used to interpret wall-clock times for this upload",
+    ),
   status: zod.string(),
   notes: zod.string().nullish(),
   batchIdentifier: zod.string().nullish(),
@@ -231,6 +255,15 @@ export const SetUploadBatchIdentifierResponse = zod.object({
  */
 export const AnalyzeUploadParams = zod.object({
   id: zod.coerce.number(),
+});
+
+export const AnalyzeUploadBody = zod.object({
+  timezone: zod
+    .string()
+    .optional()
+    .describe(
+      "IANA timezone of the capturing device (e.g. America\/New_York), used to interpret wall-clock times extracted from the screenshot",
+    ),
 });
 
 export const AnalyzeUploadResponse = zod.object({
@@ -257,18 +290,26 @@ export const GetSettingsResponse = zod.object({
     "claude-sonnet-4-6",
     "claude-haiku-4-5",
   ]),
+  timezone: zod
+    .string()
+    .describe(
+      '\"auto\" (use the device timezone sent with each analysis) or an IANA timezone id that overrides it',
+    ),
 });
 
 /**
  * @summary Update global app settings
  */
 export const UpdateSettingsBody = zod.object({
-  analysisModel: zod.enum([
-    "claude-opus-4-8",
-    "claude-sonnet-5",
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5",
-  ]),
+  analysisModel: zod
+    .enum([
+      "claude-opus-4-8",
+      "claude-sonnet-5",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5",
+    ])
+    .optional(),
+  timezone: zod.string().optional().describe('\"auto\" or an IANA timezone id'),
 });
 
 export const UpdateSettingsResponse = zod.object({
@@ -278,6 +319,11 @@ export const UpdateSettingsResponse = zod.object({
     "claude-sonnet-4-6",
     "claude-haiku-4-5",
   ]),
+  timezone: zod
+    .string()
+    .describe(
+      '\"auto\" (use the device timezone sent with each analysis) or an IANA timezone id that overrides it',
+    ),
 });
 
 /**
@@ -382,6 +428,12 @@ export const GetRecentActivityResponse = zod.object({
       confidence: zod.number().nullish(),
       summary: zod.string().nullish(),
       capturedAt: zod.coerce.date().nullish(),
+      timezone: zod
+        .string()
+        .nullish()
+        .describe(
+          "IANA timezone used to interpret wall-clock times for this upload",
+        ),
       status: zod.string(),
       notes: zod.string().nullish(),
       batchIdentifier: zod.string().nullish(),

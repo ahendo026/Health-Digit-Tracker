@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { UploadCloud, X, Loader2, Camera, ImageIcon } from "lucide-react";
 import { useAnalyzeUpload, getGetUploadSummaryQueryKey, getListUploadsQueryKey } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
+import { getBrowserTimeZone } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -55,11 +56,13 @@ export default function UploadPage() {
     setIsUploading(true);
 
     try {
+      const timezone = getBrowserTimeZone();
       const formData = new FormData();
       formData.append("file", file);
       if (sourceApp) formData.append("sourceApp", sourceApp);
       if (batchIdentifier.trim()) formData.append("batchIdentifier", batchIdentifier.trim());
       if (notes) formData.append("notes", notes);
+      if (timezone) formData.append("timezone", timezone);
 
       const response = await fetch(apiUrl("/api/uploads"), {
         method: "POST",
@@ -71,7 +74,7 @@ export default function UploadPage() {
       const upload = await response.json();
 
       analyzeUpload
-        .mutateAsync({ id: upload.id })
+        .mutateAsync({ id: upload.id, data: timezone ? { timezone } : {} })
         .catch((err) => console.error("Analysis kick-off failed", err))
         .finally(() => {
           queryClient.invalidateQueries({ queryKey: getGetUploadSummaryQueryKey() });
