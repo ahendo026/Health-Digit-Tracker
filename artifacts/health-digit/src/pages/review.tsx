@@ -262,7 +262,7 @@ export default function ReviewPage() {
                   <CardFooter className="p-4 pt-0">
                     <Button
                       className="w-full"
-                      onClick={() => handleSubmit(upload.id, upload.classification)}
+                      onClick={() => handleSubmit(upload.id, upload.classification ?? null)}
                       disabled={createReview.isPending || !canSubmit}
                       title={!canSubmit ? "Answer 'Classification correct?' first" : undefined}
                     >
