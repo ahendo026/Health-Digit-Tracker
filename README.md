@@ -22,15 +22,14 @@ pnpm install
 
 ### 2. Configure
 
-**`artifacts/api-server/.env`**
+**API server** — there is **no dotenv loader**; the shell that launches it must already export these (Claude Code injects them from `.claude/settings.local.json`; in a plain terminal, export them inline). Where every credential lives: [docs/SECRETS.md](docs/SECRETS.md).
 ```bash
 PORT=8080
 DATABASE_URL=postgres://user:pass@host.neon.tech/db?sslmode=require
 AI_INTEGRATIONS_ANTHROPIC_API_KEY=sk-ant-api03-...
-AI_INTEGRATIONS_ANTHROPIC_BASE_URL=https://api.anthropic.com
 ```
 
-**`artifacts/health-digit/.env`**
+**`artifacts/health-digit/.env`** (Vite loads this natively; no secrets — `VITE_*` values are inlined into the public bundle)
 ```bash
 VITE_API_BASE_URL=http://localhost:8080
 PORT=24283
@@ -85,7 +84,14 @@ pnpm run typecheck                               # type-check all packages
 pnpm run build                                   # build all packages
 pnpm --filter @workspace/db run push             # push DB schema changes
 pnpm --filter @workspace/api-spec run codegen    # regenerate API types from OpenAPI spec
+pnpm --filter @workspace/scripts run set-password  # set/rotate the master password (turns on auth)
 ```
+
+---
+
+## Authentication
+
+The API is open until a master password is set (the local-dev default). Once set — `pnpm --filter @workspace/scripts run set-password` — every device logs in once with the password and receives a never-expiring, revocable token; manage devices in Settings → Devices. Details in [docs/SYSTEM.md §13](docs/SYSTEM.md#13-production-considerations).
 
 ---
 
@@ -122,4 +128,5 @@ pnpm --filter @workspace/api-spec run codegen    # regenerate API types from Ope
 |---|---|
 | [docs/SYSTEM.md](docs/SYSTEM.md) | Complete system documentation (architecture, API, schema, debugging, deployment) |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Render / production deployment |
+| [docs/SECRETS.md](docs/SECRETS.md) | Where every credential lives and how to rotate it |
 | [CLAUDE.md](CLAUDE.md) | Claude Code project guidance |

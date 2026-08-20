@@ -52,8 +52,9 @@ There is no test runner. Type checking is the primary correctness mechanism.
 - **OpenAPI spec** (`lib/api-spec/openapi.yaml`) is the single source of truth for all routes
 - **Orval codegen** generates `lib/api-zod` (server validation) and `lib/api-client-react` (frontend hooks) — never edit these by hand
 - **File storage**: local disk in dev (`local://` URIs), GCS in production (`/objects/` paths). GCS auth supports either Replit sidecar (default) or standard service account credentials via `GCS_CREDENTIALS_JSON` env var.
-- **LLM**: `analyzeScreenshot()` in `artifacts/api-server/src/lib/analysis.ts` calls the Claude vision model configured in Settings (default `claude-opus-4-8`, selectable via the global `app_settings` store); returns a typed `AnalysisResult` that includes `capturedAt` (date/time extracted from the image itself).
-- **DB**: 13 tables defined in `lib/db/src/schema/uploads.ts` (includes `app_settings`); schema-push only, no migration files
+- **LLM**: `analyzeScreenshot()` in `artifacts/api-server/src/lib/analysis.ts` calls the Claude vision model configured in Settings (default `claude-opus-4-8`, selectable via the global `app_settings` store); returns a typed `AnalysisResult` that includes `capturedAt` (date/time extracted from the image itself). All model-emitted datetimes are LOCAL wall-clock strings (no offset); the uploads route converts them to UTC via `wallClockToInstant()` in `lib/timezone.ts` using the effective timezone (Settings override > device zone from the request > `uploads.timezone` > `America/New_York`).
+- **DB**: 14 tables defined in `lib/db/src/schema/uploads.ts` (includes `app_settings` and `devices`); schema-push only, no migration files
+- **Auth**: device-token auth gates all of `/api` (middleware in `artifacts/api-server/src/middlewares/auth.ts`) — but only once a master password is set via `pnpm --filter @workspace/scripts run set-password` (enforce-when-configured; local dev with no password stays open). Frontend attaches the token via `setAuthTokenGetter` in `main.tsx`; images load through `components/authed-image.tsx`. Bearer tokens, never cookies (separate onrender.com origins + Public Suffix List → Safari blocks cross-site cookies).
 - **Deployment**: `render.yaml` at repo root defines two Render services — API web service + static frontend. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 See [docs/SYSTEM.md](docs/SYSTEM.md) for the full architecture, data flow, and component descriptions.
@@ -157,6 +158,7 @@ pnpm --filter @workspace/api-spec run codegen
 | `AIRTABLE_API_KEY` | — | Personal Access Token. Required when the sync is enabled. |
 | `AIRTABLE_BASE_ID` | — | Airtable base ID (e.g. `appXXXXXXXXXXXXXX`). Required with `AIRTABLE_API_KEY`. |
 | `AIRTABLE_UPLOADS_TABLE` / `AIRTABLE_LLM_RUNS_TABLE` / `AIRTABLE_REVIEWS_TABLE` / `AIRTABLE_MEALS_TABLE` / `AIRTABLE_WORKOUTS_TABLE` | — | Airtable table names or IDs, one per synced entity. Missing values disable sync for that entity only. |
+| `FRONTEND_ORIGINS` | open CORS | Comma-separated origin allowlist for CORS (hardening; bearer auth doesn't depend on it) |
 | `NODE_ENV` | — | Set to `production` to disable local dev routes |
 | `LOG_LEVEL` | `info` | Pino log level |
 

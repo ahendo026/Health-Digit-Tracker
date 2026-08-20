@@ -92,6 +92,8 @@ The core thesis: most health data lives as screenshots. HealthDigits turns those
 
 The frontend is a purely client-side SPA. All data fetching uses generated React Query hooks. There is no SSR.
 
+Once a master password is configured server-side, the app requires a one-time login per device (`/login`): the device token is kept in `localStorage`, attached to every generated hook call via the orval mutator's `setAuthTokenGetter`, and to image loads via the `AuthedImage` component. Any 401 clears the token and redirects to `/login`. See [§13 Security](#13-production-considerations).
+
 The frontend dev server runs on **port 24283**. In production the build output (`dist/public/`) is served as static files — either by a CDN or a static file server alongside the API.
 
 ### API Server — `artifacts/api-server/` (`@workspace/api-server`)
@@ -106,7 +108,7 @@ The frontend dev server runs on **port 24283**. In production the build output (
 | File uploads | multer (memory storage) |
 | Auth headers | Redacted in logs (auth, cookie, set-cookie) |
 
-The API server runs on **port 8080**. All routes are mounted under `/api`.
+The API server runs on **port 8080**. All routes are mounted under `/api`, behind `middlewares/auth.ts` — device-token authentication that enforces only once a master password is set (open until then; see [§13 Security](#13-production-considerations)).
 
 ### Database — PostgreSQL 16 (Neon)
 
@@ -155,7 +157,7 @@ lib/
 tools/
   bench/                   ← standalone accuracy bench: ground-truth labeler + harness (see tools/bench/README.md)
 render.yaml                ← two-service Render blueprint (API + static frontend)
-scripts/                   @workspace/scripts      ← one-off maintenance scripts (tsx), e.g. backfill-timezone
+scripts/                   @workspace/scripts      ← maintenance scripts (tsx): set-password, backfill-timezone
 scripts/refresh-portproxy.ps1   ← Windows helper for WSL + Tailscale dev setups
 ```
 
@@ -168,6 +170,8 @@ Root `package.json` exposes `dev:api` and `dev:frontend` convenience scripts tha
 ## 3. Data Flow
 
 ### Step-by-step: upload → display
+
+Every request below carries `Authorization: Bearer <device token>` once auth is configured (the generated hooks add it automatically; the upload POST and image fetches attach it by hand).
 
 ```
 Step 1 — User selects a file in the browser
@@ -315,6 +319,25 @@ interface AnalysisResult {
 
 ---
 
+### Authentication — server side
+
+Three cooperating pieces (full behavior in [§13 Security](#13-production-considerations)):
+
+- **`artifacts/api-server/src/lib/auth.ts`** — scrypt password hashing (`s1:` versioned format), `verifyPassword` (timing-safe), `sha256Hex` for token hashing, and `isAuthConfigured()` (caches "configured" forever; re-checks every 30s while unconfigured).
+- **`artifacts/api-server/src/middlewares/auth.ts`** — gates all of `/api` (mounted in `app.ts`). Allowlists `/healthz`, `POST /auth/login`, `/storage/public-objects/*`; resolves Bearer tokens to unrevoked `devices` rows; sets `req.deviceId`; throttled `last_seen_at` updates; passes everything through while unconfigured.
+- **`artifacts/api-server/src/routes/auth.ts`** — `POST /auth/login` (rate-limited: 5 fails → 30s lockout), `GET /auth/devices`, `DELETE /auth/devices/:id`, `POST /auth/logout`.
+
+### Authentication — frontend side
+
+- **`artifacts/health-digit/src/lib/auth.ts`** — token storage (`localStorage` key `healthdigits_device_token`) and `redirectToLogin()`.
+- **`src/main.tsx`** — `setAuthTokenGetter(getToken)` makes every generated hook send the Bearer header.
+- **`src/App.tsx`** — QueryCache/MutationCache `onError`: any `ApiError` 401 clears the token and full-page-redirects to `/login`.
+- **`src/pages/login.tsx`** — standalone login page (no `Layout`, which fires an authed query).
+- **`src/components/authed-image.tsx`** — fetches protected images with the Bearer header and renders from an object URL (plain `<img>` can't send headers); used by the Detail preview and Review thumbnails.
+- **`src/components/layout.tsx`** — "Log out" button (revoke own token, clear locally, redirect).
+
+---
+
 ### Local Storage Helper — `artifacts/api-server/src/lib/localStorage.ts`
 
 **Purpose**: Encapsulates all knowledge of the `local://` URI scheme.
@@ -428,6 +451,8 @@ resolveLocalPath("local://local_uploads/abc.jpg")
 ## 5. API Documentation
 
 All routes are prefixed with `/api`. The server listens on **port 8080**.
+
+Once a master password is configured, every route except `GET /healthz`, `POST /auth/login`, and `GET /storage/public-objects/*` requires `Authorization: Bearer <device token>` and returns `401` without one (see the Authentication endpoints section below).
 
 ### `POST /api/uploads`
 
@@ -1075,6 +1100,13 @@ Simple key/value store for global app settings.
 
 ## 10. Frontend Behavior
 
+### Login flow (when auth is configured)
+
+1. Any API call returning 401 clears the stored device token and hard-redirects to `/login`
+2. The login page (standalone, no sidebar) asks for the master password and an optional device name
+3. On success the opaque device token is stored in `localStorage` and the app reloads to `/` — the device stays logged in indefinitely (survives browser restarts)
+4. Devices are listed and revocable in Settings → Devices; "Log out" in the sidebar revokes this device's token
+
 ### Upload flow
 
 1. User visits `/` (Upload page)
@@ -1145,6 +1177,10 @@ The image card also shows a footer with **Screen Capture** (from `upload.capture
 ---
 
 ## 11. Common Failure Modes & Debugging
+
+### Every endpoint returns 401
+
+That is authentication working, not an outage. The API enforces device-token auth whenever the `auth_password` row exists in `app_settings` — and dev and prod share the same Neon database, so setting a password anywhere enforces it everywhere. Log in through the frontend, or for curl/scripts obtain a token via `POST /api/auth/login` and send `Authorization: Bearer <token>`. `GET /api/healthz` stays public and is the right liveness probe. To turn auth off for local work: `pnpm --filter @workspace/scripts run set-password -- --clear` + API restart (this disables it for prod too — set the password again afterwards).
 
 ### `DATABASE_URL` missing or wrong
 
@@ -1370,6 +1406,9 @@ pnpm --filter @workspace/api-spec run codegen
 
 # One-off backfill for pre-v1.3.0 timezone-shifted timestamps (dry-run; add --apply to write)
 pnpm --filter @workspace/scripts run backfill-timezone -- --before=<deploy-iso> [--zone=America/New_York] [--apply]
+
+# Set / rotate / clear the master password (auth enforces while the hash row exists)
+pnpm --filter @workspace/scripts run set-password [-- --revoke-all-devices | -- --clear]
 ```
 
 ---
@@ -1485,7 +1524,7 @@ These would bypass the screenshot → LLM path and write directly to `events` wi
 
 ### Multi-user support
 
-The `users` table and `user_id` FK on `uploads` are already in the schema. Adding authentication (e.g. Replit Auth or Clerk) and scoping all queries to `user_id` would make the app multi-tenant.
+Single-user device-token authentication is in place (see §13 Security). The `users` table and `user_id` FK on `uploads` are already in the schema; going multi-tenant would mean per-user accounts (each with their own password or an identity provider), associating `devices` rows with a `user_id`, and scoping all queries to the authenticated user.
 
 ### Airtable sync
 

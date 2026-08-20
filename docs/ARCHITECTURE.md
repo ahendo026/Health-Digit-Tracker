@@ -15,4 +15,5 @@ This file is a quick-reference index into the relevant sections.
 | AI analysis pipeline and prompt design | [§8 AI Analysis Pipeline](SYSTEM.md#8-ai-analysis-pipeline) |
 | Database schema (all 14 tables) | [§9 Database Schema](SYSTEM.md#9-database-schema) |
 | Frontend routing and state management | [§10 Frontend Behavior](SYSTEM.md#10-frontend-behavior) |
+| Authentication (device tokens, master password) | [§13 Production Considerations — Security](SYSTEM.md#13-production-considerations) |
 | Airtable sync (review / evaluation layer) | [§15 Airtable Sync](SYSTEM.md#15-airtable-sync) |

@@ -39,6 +39,9 @@ pnpm --filter @workspace/db run push
 
 # Regenerate React Query hooks + Zod validators from OpenAPI spec
 pnpm --filter @workspace/api-spec run codegen
+
+# Set / rotate / clear the master password (auth enforces while the hash exists; shared dev+prod DB)
+pnpm --filter @workspace/scripts run set-password [-- --revoke-all-devices | -- --clear]
 ```
 
 The root `dev:frontend` script sets `VITE_API_BASE_URL` to the Tailscale hostname so the frontend works from external devices (phones, other desktops on the tailnet). For plain localhost testing, use the workspace-level `dev` script.
