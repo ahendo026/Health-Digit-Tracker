@@ -1,14 +1,24 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetUploadSummary } from "@workspace/api-client-react";
-import { LayoutDashboard, List, UploadCloud, CheckCircle2, Menu, X, Settings } from "lucide-react";
+import { useGetUploadSummary, useLogout } from "@workspace/api-client-react";
+import { LayoutDashboard, List, UploadCloud, CheckCircle2, Menu, X, Settings, LogOut } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import { clearToken, getToken, redirectToLogin } from "@/lib/auth";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { data: summary } = useGetUploadSummary();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const logout = useLogout();
+
+  const handleLogout = () => {
+    // Clear locally even if the revoke call fails — the token is gone either way.
+    logout.mutateAsync().catch(() => undefined).finally(() => {
+      clearToken();
+      redirectToLogin();
+    });
+  };
 
   const navItems = [
     { label: "Upload", href: "/", icon: UploadCloud },
@@ -84,6 +94,20 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         )}
       </div>
+      {getToken() && (
+        <div className="px-4 py-3 border-t border-border">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-3 text-muted-foreground"
+            onClick={handleLogout}
+            disabled={logout.isPending}
+          >
+            <LogOut className="w-4 h-4" />
+            Log out
+          </Button>
+        </div>
+      )}
     </>
   );
 

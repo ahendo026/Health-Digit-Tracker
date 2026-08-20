@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { resolveUploadImageUrl } from "@/lib/api";
+import { AuthedImage } from "@/components/authed-image";
 import { Layout } from "@/components/layout";
 import { useListUploads, useCreateReview, getGetUploadQueryOptions, getListUploadsQueryKey, getGetUploadSummaryQueryKey } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
@@ -209,7 +210,7 @@ export default function ReviewPage() {
                       href={`/uploads/${upload.id}`}
                       className="bg-muted sm:border-r border-b sm:border-b-0 border-border p-2 flex justify-center items-center hover:bg-muted/70 transition-colors"
                     >
-                      <img
+                      <AuthedImage
                         src={resolveUploadImageUrl(upload.filePath)}
                         alt={upload.originalFilename}
                         className="max-h-36 max-w-full object-contain rounded-sm"

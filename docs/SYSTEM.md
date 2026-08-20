@@ -117,7 +117,7 @@ The API server runs on **port 8080**. All routes are mounted under `/api`.
 | Schema management | `drizzle-kit push` (no migration files) |
 | Zod integration | `drizzle-zod` for insert schema generation |
 
-The single schema file is `lib/db/src/schema/uploads.ts`. All 13 tables are defined there.
+The single schema file is `lib/db/src/schema/uploads.ts`. All 14 tables are defined there.
 
 ### Storage Layer
 
@@ -715,6 +715,20 @@ Return one document's Markdown content. `name` must exactly match an entry from 
 
 ---
 
+### Authentication endpoints
+
+All API routes except `GET /healthz`, `POST /auth/login`, and `GET /storage/public-objects/*` require `Authorization: Bearer <device token>` **once a master password is configured** (see §13 Security). With no password set, the API is open (local dev default).
+
+**`POST /auth/login`** — body `{ "password": "...", "deviceName": "My iPhone" }` (deviceName optional). `200` → `{ "token": "<opaque>", "device": {...} }` — store the token on the device; it never expires. `401` wrong password; `429` after 5 failed attempts (30s lockout); `503` when no password is configured.
+
+**`GET /auth/devices`** — `200` → `{ "devices": [{ "id", "name", "userAgent", "createdAt", "lastSeenAt", "current" }] }` (non-revoked only; `current` marks the requesting device).
+
+**`DELETE /auth/devices/:id`** — revoke a device (`204`; `404` if unknown/already revoked). Revoking your own device logs you out.
+
+**`POST /auth/logout`** — revoke the requesting device's token (`204`).
+
+---
+
 ## 6. Environment Configuration
 
 ### Backend
@@ -954,14 +968,28 @@ All tables are defined in `lib/db/src/schema/uploads.ts`. Schema is managed via 
 | `batch_identifier` | text | Optional tag grouping related uploads (set at upload time or via `PATCH /api/uploads/:id/batch-identifier`); used by the bench harness for bulk cleanup |
 | `created_at` / `updated_at` | timestamptz | |
 
+### `devices`
+
+Authenticated devices (see §13 Security). One row per successful login; revocation is a tombstone.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | serial PK | |
+| `token_hash` | text NOT NULL unique | sha256 hex of the opaque device token (the token itself is never stored) |
+| `name` | text | User-supplied at login, e.g. "My iPhone" |
+| `user_agent` | text | Captured from the login request |
+| `created_at` | timestamptz | |
+| `last_seen_at` | timestamptz | Updated at most every 5 minutes |
+| `revoked_at` | timestamptz | Non-null = device signed out; token permanently dead |
+
 ### `app_settings`
 
 Simple key/value store for global app settings.
 
 | Column | Type | Notes |
 |---|---|---|
-| `key` | text PK | `analysis_model` (the Claude model) or `timezone` (`"auto"` or an IANA id) |
-| `value` | text NOT NULL | e.g. `claude-opus-4-8`, `auto`, `America/New_York` |
+| `key` | text PK | `analysis_model` (the Claude model), `timezone` (`"auto"` or an IANA id), or `auth_password` (scrypt hash — presence turns auth enforcement on) |
+| `value` | text NOT NULL | e.g. `claude-opus-4-8`, `auto`, `America/New_York`, `s1:<salt>:<hash>` |
 | `updated_at` | timestamptz | Auto-updated on write |
 
 ### `llm_runs`
@@ -1084,6 +1112,7 @@ Simple key/value store for global app settings.
 
 - **Analysis model picker** — a select listing the four supported Claude models (Opus 4.8 default, Sonnet 5, Sonnet 4.6, Haiku 4.5) with short hints; saving calls `PUT /api/settings`
 - **Timezone selector** — "Auto — use this device's timezone" (default) or an explicit US zone (Eastern, Central, Mountain, Arizona, Pacific). An explicit zone overrides the device zone when interpreting times read from screenshots. A stored non-listed IANA value still renders as its own option. Saving calls `PUT /api/settings`.
+- **Devices** — lists authenticated devices (name, browser, created/last-seen, "This device" badge) with a confirm-dialog revoke button; hidden while the list is empty (auth unconfigured). Revoking the current device logs it out via the global 401 handler.
 - **Documentation viewer** — lists the in-repo Markdown docs from `GET /api/docs` and renders the selected document (fetched via `GET /api/doc`) in a dialog, so the docs shown always match the deployed code
 
 ### Image rendering
@@ -1259,7 +1288,7 @@ BASE_PATH=/
 pnpm --filter @workspace/db run push
 ```
 
-This creates all 13 tables. Run again any time `lib/db/src/schema/uploads.ts` changes.
+This creates all 14 tables. Run again any time `lib/db/src/schema/uploads.ts` changes.
 
 **5. Start the API server** (Terminal 1)
 
@@ -1374,11 +1403,20 @@ Existing uploads stored with `local://` paths will break if the server switches 
 
 ### Security
 
-| Concern | Current state | Recommendation |
+**Authentication (device-based, single-user).** The whole `/api` surface is gated by `middlewares/auth.ts`, mounted in `app.ts`:
+
+- **Enforce-when-configured**: with no `auth_password` row in `app_settings`, every request passes through (local dev default). Setting a password via `pnpm --filter @workspace/scripts run set-password` turns enforcement on — no env vars, no restart, no lockout risk during rollout. (`--clear` removes it; the "configured" flag is cached in-process, so clearing needs an API restart.)
+- **Master password** → scrypt hash (`s1:<salt>:<hash>`, N=16384/r=8/p=1) in `app_settings[auth_password]`; verified with `timingSafeEqual`. 5 failed logins → 30s in-memory lockout.
+- **Device tokens**: `POST /auth/login` issues a 32-byte opaque token; only its sha256 lives in the `devices` table. Tokens never expire; revocation (Settings → Devices, or `--revoke-all-devices` on rotation) is the safety valve. `last_seen_at` is updated at most every 5 minutes.
+- **Bearer tokens, not cookies** — deliberately: the frontend and API are separate `onrender.com` subdomains, and `onrender.com` is on the Public Suffix List, so cross-site cookies are third-party and blocked by Safari/iOS. The orval mutator attaches the header to every generated hook (`setAuthTokenGetter` in `main.tsx`); images go through `components/authed-image.tsx` (fetch + blob URL) because `<img>` tags can't send headers. The token lives in `localStorage` (`healthdigits_device_token`) — an accepted XSS tradeoff for a single-user app with no third-party scripts.
+- **Public without a token**: `GET /healthz`, `POST /auth/login`, `GET /storage/public-objects/*` (intentionally public assets).
+
+| Concern | Current state | Notes |
 |---|---|---|
-| API keys | Env vars | Use Replit Secrets or a secrets manager; never commit |
-| CORS | `app.use(cors())` — open | Restrict to the frontend's origin in production |
-| File serving | Unauthenticated | Add authentication middleware to `GET /api/storage/objects/*` |
+| API access | Device-token auth (above) | Enforced once a master password is set |
+| API keys | Env vars | Render dashboard / untracked local files; see docs/SECRETS.md |
+| CORS | Open by default; `FRONTEND_ORIGINS` env (comma-separated) restricts origins | Bearer tokens aren't ambient credentials, so this is hardening, not a security dependency |
+| File serving | `GET /api/storage/objects/*` requires a device token | `public-objects` stays public by design |
 | DB access | `DATABASE_URL` connection string | Use a dedicated DB user with minimal privileges |
 | Upload size | Not enforced in code | Add `multer` file size limits and MIME type validation |
 | Path traversal | `path.basename()` applied | No further action needed for the local dev route |

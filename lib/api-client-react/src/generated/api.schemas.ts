@@ -5,6 +5,35 @@
  * Health Digit API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface LoginRequest {
+  password: string;
+  /** Optional human-readable name for this device (e.g. "Adam's iPhone") */
+  deviceName?: string;
+}
+
+export interface Device {
+  id: number;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  userAgent?: string | null;
+  createdAt: string;
+  /** @nullable */
+  lastSeenAt?: string | null;
+  /** True when this row is the device making the request */
+  current: boolean;
+}
+
+export interface LoginResponse {
+  /** Opaque device token; store on the device and send as a Bearer token */
+  token: string;
+  device: Device;
+}
+
+export interface DeviceList {
+  devices: Device[];
+}
+
 export interface HealthStatus {
   status: string;
 }

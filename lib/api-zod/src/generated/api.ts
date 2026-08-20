@@ -16,6 +16,62 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * @summary Authenticate a device with the master password
+ */
+export const LoginBody = zod.object({
+  password: zod.string(),
+  deviceName: zod
+    .string()
+    .optional()
+    .describe(
+      'Optional human-readable name for this device (e.g. \"Adam\'s iPhone\")',
+    ),
+});
+
+export const LoginResponse = zod.object({
+  token: zod
+    .string()
+    .describe(
+      "Opaque device token; store on the device and send as a Bearer token",
+    ),
+  device: zod.object({
+    id: zod.number(),
+    name: zod.string().nullish(),
+    userAgent: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+    lastSeenAt: zod.coerce.date().nullish(),
+    current: zod
+      .boolean()
+      .describe("True when this row is the device making the request"),
+  }),
+});
+
+/**
+ * @summary List authenticated devices
+ */
+export const ListDevicesResponse = zod.object({
+  devices: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string().nullish(),
+      userAgent: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+      lastSeenAt: zod.coerce.date().nullish(),
+      current: zod
+        .boolean()
+        .describe("True when this row is the device making the request"),
+    }),
+  ),
+});
+
+/**
+ * @summary Revoke a device's access
+ */
+export const RevokeDeviceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List all uploads
  */
 export const listUploadsQueryPageDefault = 1;

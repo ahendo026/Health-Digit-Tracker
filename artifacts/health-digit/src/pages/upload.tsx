@@ -8,6 +8,7 @@ import { UploadCloud, X, Loader2, Camera, ImageIcon } from "lucide-react";
 import { useAnalyzeUpload, getGetUploadSummaryQueryKey, getListUploadsQueryKey } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
 import { getBrowserTimeZone } from "@/lib/utils";
+import { getToken } from "@/lib/auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -64,9 +65,13 @@ export default function UploadPage() {
       if (notes) formData.append("notes", notes);
       if (timezone) formData.append("timezone", timezone);
 
+      // Raw fetch (multipart isn't in the OpenAPI spec) — attach the device
+      // token by hand; do NOT set Content-Type or the multipart boundary breaks.
+      const token = getToken();
       const response = await fetch(apiUrl("/api/uploads"), {
         method: "POST",
         body: formData,
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 
       if (!response.ok) throw new Error("Upload failed");

@@ -7,9 +7,13 @@ info:
 servers:
   - url: /api
     description: Base API path
+security:
+  - bearerAuth: []
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Device authentication operations
   - name: uploads
     description: Upload operations
   - name: reviews
@@ -23,6 +27,7 @@ paths:
       tags: [health]
       summary: Health check
       description: Returns server health status
+      security: []
       responses:
         "200":
           description: Healthy
@@ -30,6 +35,71 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Authenticate a device with the master password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated; the token must be stored on the device and sent as a Bearer token on every request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Incorrect password
+        "429":
+          description: Too many failed attempts; retry shortly
+        "503":
+          description: Authentication is not configured on this server
+
+  /auth/devices:
+    get:
+      operationId: listDevices
+      tags: [auth]
+      summary: List authenticated devices
+      responses:
+        "200":
+          description: Active (non-revoked) devices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceList"
+
+  /auth/devices/{id}:
+    delete:
+      operationId: revokeDevice
+      tags: [auth]
+      summary: Revoke a device's access
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Device revoked
+        "404":
+          description: Device not found or already revoked
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Revoke this device's token
+      responses:
+        "204":
+          description: Logged out
 
   /uploads:
     get:
@@ -342,7 +412,68 @@ paths:
                 $ref: "#/components/schemas/ListUploadsResponse"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Opaque device token issued by POST /auth/login
   schemas:
+    LoginRequest:
+      type: object
+      properties:
+        password:
+          type: string
+        deviceName:
+          type: string
+          description: Optional human-readable name for this device (e.g. "Adam's iPhone")
+      required:
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Opaque device token; store on the device and send as a Bearer token
+        device:
+          $ref: "#/components/schemas/Device"
+      required:
+        - token
+        - device
+
+    Device:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: ["string", "null"]
+        userAgent:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: ["string", "null"]
+          format: date-time
+        current:
+          type: boolean
+          description: True when this row is the device making the request
+      required:
+        - id
+        - createdAt
+        - current
+
+    DeviceList:
+      type: object
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Device"
+      required:
+        - devices
+
     HealthStatus:
       type: object
       properties:

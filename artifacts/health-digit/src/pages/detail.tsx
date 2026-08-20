@@ -1,12 +1,14 @@
 import { useRoute, Link, useLocation } from "wouter";
 import { useState } from "react";
-import { resolveUploadImageUrl, apiUrl } from "@/lib/api";
+import { resolveUploadImageUrl } from "@/lib/api";
+import { AuthedImage } from "@/components/authed-image";
 import { getBrowserTimeZone } from "@/lib/utils";
 import { Layout } from "@/components/layout";
 import {
   useGetUpload,
   useAnalyzeUpload,
   useDeleteUpload,
+  useSetUploadCapturedAt,
   useListUploads,
   useSetUploadBatchIdentifier,
   getGetUploadQueryKey,
@@ -85,6 +87,7 @@ export default function DetailPage() {
   });
 
   const analyzeUpload = useAnalyzeUpload();
+  const setCapturedAt = useSetUploadCapturedAt();
   const deleteUpload = useDeleteUpload();
   const [, setLocation] = useLocation();
   const { data: uploadList } = useListUploads({ limit: 500 });
@@ -118,12 +121,10 @@ export default function DetailPage() {
     if (!capturedAtInput) return;
     setSavingCapturedAt(true);
     try {
-      const res = await fetch(apiUrl(`/api/uploads/${id}/captured-at`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ capturedAt: new Date(capturedAtInput).toISOString() }),
+      await setCapturedAt.mutateAsync({
+        id,
+        data: { capturedAt: new Date(capturedAtInput).toISOString() },
       });
-      if (!res.ok) throw new Error("Failed to save");
       await queryClient.invalidateQueries({ queryKey: getGetUploadQueryKey(id) });
       setEditingCapturedAt(false);
       setCapturedAtInput("");
@@ -441,7 +442,7 @@ export default function DetailPage() {
                 <span>{(upload.fileSize / 1024).toFixed(1)} KB</span>
               </div>
               <div className="p-4 bg-muted/30 flex justify-center bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZjBmMGYwIj48L3JlY3Q+CjxyZWN0IHg9IjQiIHk9IjQiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmMGYwZjAiPjwvcmVjdD4KPC9zdmc+')]">
-                <img
+                <AuthedImage
                   src={resolveUploadImageUrl(upload.filePath)}
                   alt={upload.originalFilename}
                   className="max-w-full h-auto rounded shadow-sm border border-border/50 max-h-[500px] object-contain"

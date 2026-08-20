@@ -17,6 +17,7 @@ Read this before adding, moving, or rotating any key. The golden rule:
 | `AI_INTEGRATIONS_ANTHROPIC_API_KEY` | [Anthropic Console](https://console.anthropic.com) → API Keys | `analyzeScreenshot()` in `artifacts/api-server/src/lib/analysis.ts` | Optional — without it the server runs but every analysis returns *"Analysis service is not configured."* | Yes (Render dashboard) |
 | `GCS_CREDENTIALS_JSON` | GCP IAM → service account key (single-line JSON) | GCS uploads in `objectStorage.ts` | No (dev uses `local://` disk storage) | Yes if `PRIVATE_OBJECT_DIR` is set |
 | `AIRTABLE_API_KEY` (+ base/table IDs) | Airtable → Developer hub → Personal access tokens | Airtable sync (off by default via `AIRTABLE_SYNC_ENABLED`) | No | Only if sync enabled |
+| Master password (`auth_password`) | Set via `pnpm --filter @workspace/scripts run set-password` — only the scrypt **hash** is stored, in the `app_settings` DB row; the plaintext lives in your password manager only | API auth middleware; typed once per device at login | Optional (no row = auth off) | Yes — presence of the row enforces auth |
 
 Non-secrets that ride along in the same env blocks: `BASE_PATH`, `PORT`, `NODE_ENV`, `VITE_API_BASE_URL`.
 
@@ -85,6 +86,12 @@ Rotating in the Neon console alone is not enough. Update **every** copy:
 6. Confirm `.claude/settings.json` contains no `DATABASE_URL`/`PGPASSWORD` at all.
 7. Restart every Claude Code / Codex session and the API server.
 8. Verify: `pnpm --filter @workspace/db run push` connects cleanly.
+
+## Rotation checklist — Master password
+
+1. `DATABASE_URL=<prod url> pnpm --filter @workspace/scripts run set-password -- --revoke-all-devices` (interactive prompt; the flag also signs out every device).
+2. Log back in on each device with the new password.
+3. Only the scrypt hash ever touches the database; nothing else to update. `--clear` removes the password entirely (auth off after an API restart) — dev convenience only, never use in prod.
 
 ## Rotation checklist — Anthropic API key
 

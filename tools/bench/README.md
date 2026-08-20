@@ -70,6 +70,11 @@ Labeling conventions for smart40:
 | `--rescore <internal-data.json>` | Re-score a previous run from its recorded raw outputs — no API calls, no new uploads. Labels CSV is re-read, so label fixes apply. |
 | `--redact "Name,term"` | Replace terms with `[name redacted]` in the report HTML (internal data is left verbatim) |
 
+> **Auth note:** the harness targets a local dev API, which is open as long as no
+> master password is configured (see docs/SECRETS.md). Pointing it at an
+> auth-enforced instance would require adding an `Authorization: Bearer <device
+> token>` header to its fetch calls — not implemented.
+
 Scoring notes:
 
 - Empty label fields are "not shown in image" and are not compared; a label of

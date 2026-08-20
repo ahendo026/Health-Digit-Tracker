@@ -46,6 +46,12 @@ The production deployment target is **Render**. Two services are defined in [`re
 
 8. Verify: `https://healthdigits-frontend.onrender.com` loads, upload a screenshot, analysis completes, image renders.
 
+9. **Turn on authentication** (recommended — without it the API is public). From any machine with the prod `DATABASE_URL`:
+   ```bash
+   DATABASE_URL=<prod url> pnpm --filter @workspace/scripts run set-password
+   ```
+   Enforcement starts as soon as the password is set (no restart needed). Each device then logs in once via the app's login page. Optionally set `FRONTEND_ORIGINS` on the API service to the frontend origin to restrict CORS.
+
 ---
 
 ## Ports (for local or self-hosted deployments)

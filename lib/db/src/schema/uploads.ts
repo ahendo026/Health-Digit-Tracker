@@ -31,6 +31,19 @@ export const uploadsTable = pgTable("uploads", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// Authenticated devices. A row is created per successful login; the opaque
+// token itself is never stored — only its sha256 hash. Revocation is a
+// tombstone (revoked_at) so the device list retains history until cleanup.
+export const devicesTable = pgTable("devices", {
+  id: serial("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  name: text("name"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
 // Simple key/value store for global app settings (e.g. the model used for analysis).
 export const appSettingsTable = pgTable("app_settings", {
   key: text("key").primaryKey(),
@@ -179,3 +192,4 @@ export type Workout = typeof workoutsTable.$inferSelect;
 export type Review = typeof reviewsTable.$inferSelect;
 export type Outcome = typeof outcomesTable.$inferSelect;
 export type AppSetting = typeof appSettingsTable.$inferSelect;
+export type Device = typeof devicesTable.$inferSelect;

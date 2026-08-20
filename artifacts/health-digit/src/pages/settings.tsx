@@ -9,14 +9,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Cpu, FileText, BookOpen, Globe } from "lucide-react";
+import { Loader2, Cpu, FileText, BookOpen, Globe, Smartphone, Trash2 } from "lucide-react";
 import {
   useGetSettings,
   useUpdateSettings,
   useListDocs,
   useGetDoc,
+  useListDevices,
+  useRevokeDevice,
   getGetSettingsQueryKey,
+  getListDevicesQueryKey,
 } from "@workspace/api-client-react";
+import { format } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import type { SettingsAnalysisModel } from "@workspace/api-client-react";
 import {
   Dialog,
@@ -71,6 +86,23 @@ export default function SettingsPage() {
   const [model, setModel] = useState<SettingsAnalysisModel | undefined>(undefined);
   const [timezone, setTimezone] = useState<string | undefined>(undefined);
   const [openDoc, setOpenDoc] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<{ id: number; name: string; current: boolean } | null>(null);
+
+  const { data: deviceList } = useListDevices();
+  const revokeDevice = useRevokeDevice();
+
+  const handleRevoke = async () => {
+    if (!revokeTarget) return;
+    try {
+      await revokeDevice.mutateAsync({ id: revokeTarget.id });
+      await queryClient.invalidateQueries({ queryKey: getListDevicesQueryKey() });
+      toast({ title: "Device revoked", description: `${revokeTarget.name} can no longer access HealthDigits.` });
+    } catch {
+      toast({ title: "Could not revoke device", variant: "destructive" });
+    } finally {
+      setRevokeTarget(null);
+    }
+  };
 
   const { data: docList } = useListDocs();
 
@@ -197,6 +229,65 @@ export default function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        {deviceList && deviceList.devices.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-primary" /> Devices
+              </CardTitle>
+              <CardDescription>
+                Devices that have logged in with the master password. Revoke one to sign it out —
+                it will need the password to get back in.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {deviceList.devices.map((d) => (
+                <div key={d.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <span className="truncate">{d.name || "Unnamed device"}</span>
+                      {d.current && <Badge variant="secondary">This device</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{d.userAgent || "Unknown browser"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Added {format(new Date(d.createdAt), "MMM d, yyyy")}
+                      {d.lastSeenAt && ` · last seen ${format(new Date(d.lastSeenAt), "MMM d 'at' h:mm a")}`}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    aria-label={`Revoke ${d.name || "device"}`}
+                    onClick={() => setRevokeTarget({ id: d.id, name: d.name || "Unnamed device", current: d.current })}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        <AlertDialog open={!!revokeTarget} onOpenChange={(o) => !o && setRevokeTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revoke {revokeTarget?.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {revokeTarget?.current
+                  ? "This is the device you're using right now — you'll be logged out immediately and need the master password to get back in."
+                  : "That device will be signed out and will need the master password to access HealthDigits again."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleRevoke} disabled={revokeDevice.isPending}>
+                Revoke
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <Card className="mt-6">
           <CardHeader className="pb-4">
